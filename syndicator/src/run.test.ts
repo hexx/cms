@@ -194,9 +194,11 @@ function makeContext(options: {
   return context;
 }
 
+const originalMastodon = DESTINATIONS.mastodon;
+
 afterEach(() => {
   vi.unstubAllGlobals();
-  delete DESTINATIONS.mastodon;
+  DESTINATIONS.mastodon = originalMastodon;
 });
 
 // ---- テスト ----
@@ -391,6 +393,43 @@ describe('runSyndication: ATProto レコード', () => {
     context.publicationAtUri = 'at://did:plc:REPLACE_ME/site.standard.publication/self';
 
     await expect(runSyndication(context)).rejects.toThrow(/プレースホルダ/);
+  });
+});
+
+describe('runSyndication: 複数の宛先', () => {
+  it('1つの宛先が失敗しても、他の宛先の配信は成立する', async () => {
+    const db = createTestDb();
+    const fake = createFakeAgent();
+    installFetch(buildFeed([feedItem('/posts/2026/09/hello-world')]));
+
+    DESTINATIONS.mastodon = {
+      id: 'mastodon',
+      label: 'Mastodon',
+      isConfigured: () => true,
+      async publish() {
+        throw new Error('mastodon down');
+      },
+      async remove() {},
+    };
+
+    const summary = await runSyndication(
+      makeContext({ db, fake, destinations: 'bluesky,mastodon' }),
+    );
+
+    expect(summary.insert).toBe(1);
+    expect(summary.deliveries.sent).toBe(1);
+    expect(summary.deliveries.retrying).toBe(1);
+
+    const rows = await db
+      .prepare('SELECT destination, status, attempt FROM delivery ORDER BY destination')
+      .all<{ destination: string; status: string; attempt: number }>();
+    expect(rows.results).toEqual([
+      { destination: 'bluesky', status: 'sent', attempt: 0 },
+      { destination: 'mastodon', status: 'pending', attempt: 1 },
+    ]);
+
+    // Bluesky の投稿は成立しているので bskyPostRef も書き戻される
+    expect(fake.createdPosts).toBe(1);
   });
 });
 

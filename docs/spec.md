@@ -199,14 +199,15 @@ lang: ja                      # 任意, 既定 ja
 | Destination | 方式 | 資格情報（Workers Secret） | 削除 |
 |---|---|---|---|
 | **Bluesky** | ATProto API（`@atproto/api`） | `BSKY_HANDLE`, `BSKY_APP_PASSWORD` | `com.atproto.repo.deleteRecord` |
-| **Mastodon** | REST `POST /api/v1/statuses` | `MASTODON_INSTANCE_URL`, `MASTODON_TOKEN` | `DELETE /api/v1/statuses/:id` |
-| **Misskey** | REST `POST /api/notes/create` | `MISSKEY_INSTANCE_URL`, `MISSKEY_TOKEN` | `POST /api/notes/delete` |
+| **Mastodon** | REST `POST /api/v1/statuses` | `MASTODON_INSTANCE_URL`, `MASTODON_TOKEN` | `DELETE /api/v1/statuses/:id`（404/410 は成功扱い） |
+| **Misskey** | REST `POST /api/notes/create` | `MISSKEY_INSTANCE_URL`（既定 misskey.io）, `MISSKEY_TOKEN` | `POST /api/notes/delete`（`NO_SUCH_NOTE` は成功扱い） |
 | **Nostr** | relay へ kind:1 を publish | `NOSTR_NSEC`, `NOSTR_RELAYS` | kind:5（NIP-09） |
 | **Threads** | Graph API の2段階 publish | `THREADS_USER_ID` + 長期トークン（**D1 の `credential` に保存**し Cron で更新） | `DELETE /v1.0/:id` |
 | **Discord** | Incoming Webhook | `DISCORD_WEBHOOK_URL` | `DELETE /webhooks/.../messages/:id` |
 | **X** | **手動**（Web Intent ボタン） | なし | — |
 
 - 各 Destination は**独立**。1つの失敗が他を止めない。
+- 文面の組み立ては `syndicator/src/text.ts` に集約する。Post は `タイトル\nURL（+ タグ）`、Note は本文そのまま。上限に収まらないときは **URL > タイトル > ハッシュタグ** の順で守り、落とす（`composeLinkedPost`）。
 - アダプタは共通インターフェース `publish(doc, { dryRun })` / `remove(delivery)` を実装し、**dry-run では HTTP を送らずリクエスト内容を返す**。
 
 ### 6.2 文面テンプレート
@@ -445,7 +446,7 @@ cms/
 |---|---|---|
 | **P1 基盤** ✅ | リポジトリ、Astro、Post/Note、URL、CSS、フィード、OGP、JSON-LD、`.well-known`、link タグ | `hexx.jp` でブログが読め、RSS/JSON Feed が取れ、`.well-known` が AT-URI を返す |
 | **P2 配信基盤 + standard.site** ✅ | `bootstrap`、publication/document の書き込み、Bluesky 配信、D1 スキーマ、Cron、デプロイフック、dry-run、`/admin`、`config.json` の `publicationAtUri` 確定 | 記事公開 → Bluesky に記事カードが出て、`bskyPostRef` がレコードに入る。失敗しても1分後に再試行される |
-| **P3 連合系** | Mastodon / Misskey / Nostr のアダプタと削除 | 3宛先に配信され、記事削除で3宛先から消える |
+| **P3 連合系** ✅ | Mastodon / Misskey / Nostr のアダプタと削除 | 3宛先に配信され、記事削除で3宛先から消える |
 | **P4 残り** | Threads（審査は P3 中に提出）/ Discord 通知 / X 手動ボタン | Threads に投稿され、Discord にサマリが届く |
 | **P5 運用** | 削除伝播の全宛先化、Backfill、`/admin`、Runbook、`docs` 整備 | 管理画面から再送でき、過去記事を Threads だけに後から流せる |
 

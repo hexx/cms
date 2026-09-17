@@ -18,7 +18,7 @@ syndicator/        Cloudflare Worker。ATProto レコードの書き込みと SN
 |---|---|---|
 | P1 | サイト基盤（Astro、Post/Note、フィード、OGP、standard.site の検証ファイルと link タグ） | ✅ |
 | P2 | Syndicator（D1、差分検出、publication/document レコード、Bluesky 配信、Cron、`/admin`、dry-run） | ✅ |
-| P3 | Mastodon / Misskey / Nostr | 未着手 |
+| P3 | Mastodon / Misskey / Nostr | ✅ |
 | P4 | Threads / Discord 通知 / X 手動ボタン | 未着手 |
 | P5 | 削除伝播の全宛先化、Backfill、Runbook | 未着手 |
 
@@ -95,9 +95,14 @@ watch paths（`site/**` と `syndicator/**`）で分離する。blog のデプ�
 | `SYNDICATE_SECRET` | デプロイフック用の共有シークレット（`X-Syndicate-Secret`） |
 | `ADMIN_TOKEN` | 読み取り API / 管理操作用の Bearer トークン |
 | `BSKY_HANDLE` / `BSKY_APP_PASSWORD` | Bluesky への投稿と standard.site レコードの書き込み |
+| `MASTODON_TOKEN` | Mastodon への投稿（インスタンス URL は `wrangler.jsonc` の vars でも可） |
+| `MISSKEY_TOKEN` | Misskey への投稿（インスタンスは vars の `MISSKEY_INSTANCE_URL`、既定 `https://misskey.io`） |
+| `NOSTR_NSEC` | Nostr への投稿（`nsec1...` か 64 桁 hex）。**Syndicator にしか置かない** |
 | `DISCORD_WEBHOOK_URL` | 任意。配信結果の通知先 |
 
-`ENABLED_DESTINATIONS`（カンマ区切り、既定 `bluesky`）で有効な宛先を切り替える。実装されていない宛先を有効にすると、その Delivery は `dead` になって Discord に通知される。
+`ENABLED_DESTINATIONS`（カンマ区切り、既定 `bluesky`）で有効な宛先を切り替える。指定できるのは `bluesky,mastodon,misskey,nostr,threads,discord` で、実装されていない宛先（現状 `threads` / `discord`）を有効にすると、その Delivery は `dead` になって Discord に通知される。
+
+`NOSTR_RELAYS` を省略すると sns-client と同じ固定リレーセット（`yabu.me` / `relay.damus.io` / `nos.lol` / `relay.nostr.band` / `relay.primal.net` / `nostr.hiroba.media`）を使う。1つでもリレーが受理すれば配信成功とする。
 
 ### ブートストラップ（初回のみ）
 

@@ -11,6 +11,17 @@ export type Env = {
   BSKY_HANDLE?: string;
   BSKY_APP_PASSWORD?: string;
 
+  MASTODON_INSTANCE_URL?: string;
+  MASTODON_TOKEN?: string;
+
+  MISSKEY_INSTANCE_URL?: string;
+  MISSKEY_TOKEN?: string;
+
+  /** `nsec1...` か 64桁の hex */
+  NOSTR_NSEC?: string;
+  /** カンマ区切りのリレー URL */
+  NOSTR_RELAYS?: string;
+
   DISCORD_WEBHOOK_URL?: string;
 
   /** カンマ区切りの有効 Destination。未設定なら 'bluesky' */
@@ -62,6 +73,34 @@ export function enabledDestinations(env: Env): DestinationId[] {
     .filter((value): value is DestinationId =>
       (ALL_DESTINATIONS as readonly string[]).includes(value),
     );
+}
+
+export const DEFAULT_MISSKEY_INSTANCE_URL = 'https://misskey.io';
+
+/** sns-client と同じ固定リレーセット（日本語圏のリレーを含む） */
+export const DEFAULT_NOSTR_RELAYS = [
+  'wss://yabu.me',
+  'wss://relay.damus.io',
+  'wss://nos.lol',
+  'wss://relay.nostr.band',
+  'wss://relay.primal.net',
+  'wss://nostr.hiroba.media',
+] as const;
+
+export function mastodonInstanceUrl(env: Env): string {
+  return (env.MASTODON_INSTANCE_URL ?? '').replace(/\/+$/, '');
+}
+
+export function misskeyInstanceUrl(env: Env): string {
+  return (env.MISSKEY_INSTANCE_URL ?? DEFAULT_MISSKEY_INSTANCE_URL).replace(/\/+$/, '');
+}
+
+export function nostrRelays(env: Env): string[] {
+  if (!env.NOSTR_RELAYS) return [...DEFAULT_NOSTR_RELAYS];
+  const relays = env.NOSTR_RELAYS.split(',')
+    .map((relay) => relay.trim())
+    .filter((relay) => relay.startsWith('wss://') || relay.startsWith('ws://'));
+  return relays.length > 0 ? relays : [...DEFAULT_NOSTR_RELAYS];
 }
 
 /** AT-URI から authority（DID）を取り出す */

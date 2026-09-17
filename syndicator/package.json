@@ -15,6 +15,9 @@
   "dependencies": {
     "@atproto/api": "^0.20.44",
     "@hexx/shared": "*",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "@scure/base": "^2.4.0",
     "hono": "^4.13.8"
   },
   "devDependencies": {
