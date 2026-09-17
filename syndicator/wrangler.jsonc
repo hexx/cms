@@ -1,0 +1,29 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "hexx-syndicator",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": ["*/10 * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hexx-syndicator",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ]
+  // シークレットは `wrangler secret put` で設定する:
+  //   SYNDICATE_SECRET  デプロイフック用の共有シークレット
+  //   ADMIN_TOKEN       読み取り API / 管理操作用の Bearer トークン
+  //   BSKY_HANDLE / BSKY_APP_PASSWORD
+  //   DISCORD_WEBHOOK_URL（任意）
+  // ローカル検証は .dev.vars（git 管理外）で上書きする:
+  //   FEED_URL=http://127.0.0.1:8789/feed-all.json
+  //   DRY_RUN=true
+}

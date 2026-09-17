@@ -5,10 +5,10 @@ import {
   documentId,
   documentPath,
   jstParts,
-  markdownToText,
   type DocumentFrontmatter,
   type DocumentKind,
 } from '@hexx/shared';
+import { markdownToText } from './markdown.ts';
 
 export type AnyEntry = CollectionEntry<'posts'> | CollectionEntry<'notes'>;
 

@@ -13,6 +13,8 @@ export type SiteConfig = {
   author: { name: string; url: string };
   /** rel="me" で並べる本人確認リンク */
   relMe: string[];
+  /** ATProto の PDS ホスト（Bluesky のレコード置き場） */
+  pdsHost: string;
   /** standard.site の publication レコードの AT-URI。ブートストラップで確定させる */
   publicationAtUri: string;
   /** standard.site の basicTheme にそのまま流用する配色 */
@@ -42,6 +44,7 @@ export const IS_PLACEHOLDER_PUBLICATION = PUBLICATION_AT_URI.includes('REPLACE_M
 export const SITE_NAME = CONFIG.name;
 export const SITE_DESCRIPTION = CONFIG.description;
 export const SITE_LANGUAGE = CONFIG.language;
+export const PDS_HOST = CONFIG.pdsHost;
 export const DEFAULT_OG_IMAGE = CONFIG.defaultOgImage;
 export const WEBMENTION_ENDPOINT = CONFIG.webmentionEndpoint;
 

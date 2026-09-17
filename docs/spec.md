@@ -179,10 +179,15 @@ lang: ja                      # 任意, 既定 ja
 
 ### 5.5 ブートストラップ（初回のみ・手動）
 
+ローカルに App Password を置かないよう、レコード作成は **Worker にやらせる**。
+
 1. Bluesky アカウントを用意し、ハンドルを `hexx.jp` に変更（`_atproto` TXT）。
 2. Syndicator 用の App Password を発行（sns-client 用とは**別に発行する**）。
-3. `npm run atproto:bootstrap` を実行 → publication レコードを作成し、AT-URI を表示。
-4. 表示された AT-URI を `packages/shared/src/config.ts` の `PUBLICATION_AT_URI` に固定。
+3. Syndicator をデプロイし、`BSKY_HANDLE` / `BSKY_APP_PASSWORD` / `ADMIN_TOKEN` / `SYNDICATE_SECRET` を `wrangler secret put` で設定。
+4. `SYNDICATOR_URL=... ADMIN_TOKEN=... npm run bootstrap -w syndicator -- --write`
+   - `POST /v1/publication` が publication レコード（rkey = `self`）を作り、AT-URI を返す
+   - `--write` で `packages/shared/config.json` の `publicationAtUri` を更新する
+   - 併せて `_atproto.hexx.jp TXT "did=..."` に貼る値も表示される
 5. サイトをデプロイし、`/.well-known/site.standard.publication` と Bluesky のカード表示を確認。
 
 ---
@@ -228,11 +233,14 @@ lang: ja                      # 任意, 既定 ja
    - 変更 → レコードを更新（SNS は再投稿しない）
    - 消滅 → 削除伝播
 
+**安全装置**: フィードが空なのに手元に公開中の Document がある場合、`unpublish` は行わない（壊れたデプロイやフィードの取り違えで全記事を削除しないため）。`skippedUnpublish` として記録し、Discord へ通知する。フィードの `home_page_url` が `SITE_URL` と一致しない場合も取得時点で失敗させる。
+
 ### 6.4 冪等性と再試行
 
 - `delivery` は `UNIQUE(path, destination)`。`pending → sending → sent`、失敗時は `attempt++` して `pending` に戻し `next_attempt_at` を設定。
 - バックオフは 1分 → 5分 → 30分 → 2時間 → 12時間。5回失敗で `dead` にし、Discord へ通知。
 - **`sent` の Delivery は再送しない**（[ADR-0005](./adr/0005-delivery-state-in-d1.md)）。
+- Delivery の確保は `UPDATE ... WHERE id = ? AND status = 'pending'` の `meta.changes` で判定する。Cron とデプロイフックが同時に走っても二重送信しない。
 
 ### 6.5 更新と削除
 
@@ -244,13 +252,15 @@ lang: ja                      # 任意, 既定 ja
 
 | メソッド | パス | 認証 | 用途 |
 |---|---|---|---|
-| GET | `/health` | なし | 死活監視 |
-| POST | `/syndicate` | `X-Syndicate-Secret` + レート制限 | デプロイフック / Cron 本体 |
+| GET | `/health` | なし | 死活監視（dry-run と有効 Destination を返す） |
+| POST | `/syndicate` | `X-Syndicate-Secret` | デプロイフック / Cron の実行。同期のサマリを返す |
 | GET | `/v1/deliveries?status=&path=&limit=` | Bearer | Delivery 一覧 |
-| POST | `/v1/deliveries/:id/retry` | Bearer | 手動再送（`dead` → `pending`） |
-| POST | `/v1/backfill` | Bearer | 過去分の配信 |
-| POST | `/v1/publication` | Bearer | Publication レコードの再同期 |
-| GET | `/admin` | Cloudflare Access | 管理画面（一覧 + 再送ボタン） |
+| POST | `/v1/deliveries/:id/retry` | Bearer | 手動再送（`pending` に戻して即実行） |
+| GET | `/v1/runs` | Bearer | 実行履歴（`run_log`） |
+| POST | `/v1/publication` | Bearer | Publication レコードの再同期（ブートストラップにも使う） |
+| GET | `/admin` | Cloudflare Access | 管理画面（Delivery 一覧 + 実行履歴 + 再送ボタン） |
+| POST | `/admin/deliveries/:id/retry` | Cloudflare Access | 管理画面からの再送 |
+| POST | `/v1/backfill` | Bearer | 過去分の配信（P5） |
 
 ---
 
@@ -269,14 +279,15 @@ CREATE TABLE document_snapshot (
   text_content    TEXT,                       -- SNS 文面生成用（プレーンテキスト）
   published_at    TEXT NOT NULL,              -- ISO 8601
   updated_at      TEXT,
-  content_hash    TEXT NOT NULL,              -- 差分検出用ハッシュ
+  content_hash    TEXT NOT NULL,              -- フィードが申告する内容ハッシュ
+  record_hash     TEXT,                       -- 最後に ATProto レコードへ書いた内容のハッシュ
   first_seen_at   TEXT NOT NULL,
   unpublished_at  TEXT
 );
 
 -- standard.site レコードとの対応
 CREATE TABLE document_record (
-  path           TEXT PRIMARY KEY REFERENCES document_snapshot(path),
+  path           TEXT PRIMARY KEY,
   rkey           TEXT NOT NULL UNIQUE,
   at_uri         TEXT NOT NULL,
   cid            TEXT,
@@ -291,6 +302,7 @@ CREATE TABLE delivery (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   path            TEXT NOT NULL,
   destination     TEXT NOT NULL,   -- bluesky | mastodon | misskey | nostr | threads | discord
+  action          TEXT NOT NULL DEFAULT 'publish', -- publish | delete
   status          TEXT NOT NULL,   -- pending | sending | sent | dead | deleted | skipped
   attempt         INTEGER NOT NULL DEFAULT 0,
   external_uri    TEXT,            -- 投稿 URL / AT-URI / イベント id
@@ -303,12 +315,21 @@ CREATE TABLE delivery (
 );
 CREATE INDEX idx_delivery_due ON delivery (status, next_attempt_at);
 
--- 自動更新が必要な資格情報（現状 Threads の長期トークンのみ）
+-- 自動更新が必要な資格情報（Threads の長期トークン等。P4 で使う）
 CREATE TABLE credential (
-  name       TEXT PRIMARY KEY,     -- 'threads'
+  name       TEXT PRIMARY KEY,
   value      TEXT NOT NULL,        -- JSON
   expires_at TEXT,
   updated_at TEXT NOT NULL
+);
+
+-- 実行履歴（管理画面と障害調査用）
+CREATE TABLE run_log (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  started_at TEXT NOT NULL,
+  trigger    TEXT NOT NULL,        -- cron | deploy-hook | manual-retry | admin-retry
+  summary    TEXT NOT NULL,        -- JSON
+  error      TEXT
 );
 ```
 
@@ -348,10 +369,12 @@ Cron トリガーは10分ごとに1本。`delivery` の due な行の処理と�
 ### 8.3 記事末のアクション
 
 - **共有**: Bluesky の投稿 intent（`https://bsky.app/intent/compose?text=...`）、X の Web Intent、Canonical URL のコピー。
-- **「Bluesky で議論する」リンクは現状出していない**。サイトは静的ビルドなので、公開後に Syndicator が書く `bskyPostRef` をビルド時に知ることができないため。P2 以降で次のいずれかを選ぶ:
-  1. Syndicator が `bskyPostRef` をリポジトリに書き戻して再ビルドする（シンプルだが commit が増える）
-  2. 記事ページが実行時に `syndicator.hexx.jp` の読み取り API へ問い合わせる（動的依存が増える）
-  3. 現状の共有 intent のままで十分とする（`bskyPostRef` は ATProto レコード側の情報として残る）
+- **「Bluesky で議論する」**: 公開されている **ATProto の公開エンドポイント** をブラウザから直接読んで実現する（自前インフラに依存しない）。
+  1. `packages/shared/config.json` の `publicationAtUri` から DID を取り、`https://bsky.social/xrpc/com.atproto.repo.getRecord?repo=<did>&collection=site.standard.document&rkey=<slug>` を叩く
+  2. レスポンスの `bskyPostRef.uri` を `https://bsky.app/profile/<did>/post/<rkey>` に変換し、そのスレッドへのリンクを記事末に出す
+  3. レコードが無い・通信に失敗する・JS が無効な場合は**何も出さない**（プログレッシブエンハンスメント）
+
+  実装済み（`ShareActions.astro`）。リンクは初期状態で `hidden` で、レコードが引けたときだけ表示する。PDS ホストは `config.json` の `pdsHost`（既定 `bsky.social`）。
 
 ### 8.4 スタイル
 
@@ -421,7 +444,7 @@ cms/
 | Phase | 内容 | 完了条件 |
 |---|---|---|
 | **P1 基盤** ✅ | リポジトリ、Astro、Post/Note、URL、CSS、フィード、OGP、JSON-LD、`.well-known`、link タグ | `hexx.jp` でブログが読め、RSS/JSON Feed が取れ、`.well-known` が AT-URI を返す |
-| **P2 配信基盤 + standard.site** | `atproto:bootstrap`、publication/document の書き込み、Bluesky 配信、D1 スキーマ、Cron、デプロイフック、dry-run、`config.json` の `publicationAtUri` 確定 | 記事公開 → Bluesky に記事カードが出て、`bskyPostRef` がレコードに入る。失敗しても1分後に再試行される |
+| **P2 配信基盤 + standard.site** ✅ | `bootstrap`、publication/document の書き込み、Bluesky 配信、D1 スキーマ、Cron、デプロイフック、dry-run、`/admin`、`config.json` の `publicationAtUri` 確定 | 記事公開 → Bluesky に記事カードが出て、`bskyPostRef` がレコードに入る。失敗しても1分後に再試行される |
 | **P3 連合系** | Mastodon / Misskey / Nostr のアダプタと削除 | 3宛先に配信され、記事削除で3宛先から消える |
 | **P4 残り** | Threads（審査は P3 中に提出）/ Discord 通知 / X 手動ボタン | Threads に投稿され、Discord にサマリが届く |
 | **P5 運用** | 削除伝播の全宛先化、Backfill、`/admin`、Runbook、`docs` 整備 | 管理画面から再送でき、過去記事を Threads だけに後から流せる |
@@ -433,7 +456,7 @@ Threads の App Review は待ち時間があるため、**P2 完了時点で審�
 ## 12. テスト方針
 
 - **Destination アダプタ**: すべて `dryRun` を持ち、送信せずにリクエスト内容を返す。`fetch` をモックしたフィクスチャテストで、文面・パラメータ・冪等キーを検証する。
-- **Worker**: `vitest` + `@cloudflare/vitest-pool-workers`。D1 はマイグレーションを適用した実物を使う。状態機械（pending→sending→sent、失敗→バックオフ→dead）をテストする。
+- **Worker**: `vitest`。**D1 互換のインメモリ SQLite**（`src/testing/d1.ts` に migration を適用）と、ATProto エージェント／`fetch` のフェイクを差し込んで `runSyndication` を通しでテストする。実際の SQL（UNIQUE 制約・`meta.changes`）で冪等性と状態機械（pending→sending→sent、失敗→バックオフ→dead、unpublish→delete）を確認する。`@cloudflare/vitest-pool-workers` は使わない（サーバ起動なしで CI が軽いことを優先）。
 - **サイト**: ビルド時バリデーションをテストする（frontmatter の zod、**slug の全体一意性**、`.well-known` と `PUBLICATION_AT_URI` の一致、フィードの生成件数）。
 - **lint**: `oxlint --deny-warnings`（sns-client と同じ）。
 - **実地確認**: 本番前は全 Destination を dry-run で通し、その後1件だけ実配信して削除伝播まで確認する。
@@ -467,7 +490,7 @@ Threads の App Review は待ち時間があるため、**P2 完了時点で審�
 5. [ ] Syndicator 用 App Password を発行し、`wrangler secret put`
 6. [ ] Mastodon / Misskey / Nostr / Discord の資格情報を取得し、`wrangler secret put`
 7. [ ] Meta 開発者アプリを作成し、Threads の App Review を申請（P4 までに審査完了）
-8. [ ] `npm run atproto:bootstrap` で publication レコードを作成し、AT-URI を `config.ts` に固定
+8. [ ] `npm run bootstrap -w syndicator -- --write` で publication レコードを作り、`publicationAtUri` を確定（D1 マイグレーションは先に適用しておく）
 9. [ ] Workers Builds に2プロジェクトを接続（watch paths 設定）
 10. [ ] Cloudflare Access のアプリを `syndicator.hexx.jp/admin*` に作成
 11. [ ] デプロイし、`/.well-known/site.standard.publication` と Bluesky カードを確認

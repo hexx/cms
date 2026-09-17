@@ -1,0 +1,26 @@
+{
+  "name": "@hexx/syndicator",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8790",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply hexx-syndicator --local",
+    "db:migrate:remote": "wrangler d1 migrations apply hexx-syndicator --remote",
+    "bootstrap": "node scripts/bootstrap-publication.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@atproto/api": "^0.20.44",
+    "@hexx/shared": "*",
+    "hono": "^4.13.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260917.1",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1",
+    "wrangler": "^4.134.0"
+  }
+}

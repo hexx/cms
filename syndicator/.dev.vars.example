@@ -1,0 +1,7 @@
+# ローカル検証用の上書き（git 管理外の .dev.vars にコピーして使う）
+# サイトをローカルで配信しているときは FEED_URL をローカルに向ける
+FEED_URL=http://127.0.0.1:8789/feed-all.json
+DRY_RUN=true
+SYNDICATE_SECRET=local-secret
+ADMIN_TOKEN=local-token
+ENABLED_DESTINATIONS=bluesky

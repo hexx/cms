@@ -11,12 +11,29 @@
     "https://bsky.app/profile/hexx.jp",
     "https://github.com/hexx"
   ],
+  "pdsHost": "bsky.social",
   "publicationAtUri": "at://did:plc:REPLACE_ME/site.standard.publication/self",
   "basicTheme": {
-    "background": { "r": 252, "g": 252, "b": 253 },
-    "foreground": { "r": 17, "g": 24, "b": 39 },
-    "accent": { "r": 37, "g": 99, "b": 235 },
-    "accentForeground": { "r": 255, "g": 255, "b": 255 }
+    "background": {
+      "r": 252,
+      "g": 252,
+      "b": 253
+    },
+    "foreground": {
+      "r": 17,
+      "g": 24,
+      "b": 39
+    },
+    "accent": {
+      "r": 37,
+      "g": 99,
+      "b": 235
+    },
+    "accentForeground": {
+      "r": 255,
+      "g": 255,
+      "b": 255
+    }
   },
   "defaultOgImage": "/og-default.png",
   "webmentionEndpoint": "https://webmention.io/hexx.jp/webmention",

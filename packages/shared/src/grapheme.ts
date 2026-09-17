@@ -14,3 +14,17 @@ export function graphemeLength(value: string): number {
   for (const _ of segmenter.segment(value)) count += 1;
   return count;
 }
+
+/** グラフェム単位で切り詰める。上限以内ならそのまま返す */
+export function truncateGraphemes(value: string, max: number): string {
+  if (graphemeLength(value) <= max) return value;
+  if (!segmenter) return value.slice(0, max);
+  let result = '';
+  let count = 0;
+  for (const { segment } of segmenter.segment(value)) {
+    if (count + 1 > max) break;
+    result += segment;
+    count += 1;
+  }
+  return result;
+}
