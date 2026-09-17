@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.astro/
+.wrangler/
+.dev.vars
+*.log
+.DS_Store
+
+# ビルド時に packages/shared/config.json から生成される
+site/public/.well-known/site.standard.publication

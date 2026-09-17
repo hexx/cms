@@ -1,0 +1,33 @@
+---
+import { formatJstDate } from '@hexx/shared';
+import type { Document } from '../lib/documents';
+
+interface Props {
+  doc: Document;
+}
+
+const { doc } = Astro.props;
+const kindLabel = doc.kind === 'post' ? 'Post' : 'Note';
+---
+
+<li class="doc-card">
+  <div class="doc-card__kind">{kindLabel}</div>
+  <h2 class="doc-card__title"><a href={doc.path}>{doc.title}</a></h2>
+  {doc.description && <p class="doc-card__summary">{doc.description}</p>}
+  <div class="doc-card__footer">
+    <time datetime={doc.publishedAt.toISOString()}>{formatJstDate(doc.publishedAt)}</time>
+    {
+      doc.tags.length > 0 && (
+        <ul class="tag-list">
+          {doc.tags.map((tag) => (
+            <li>
+              <a class="tag" href={`/tags/${encodeURIComponent(tag)}`}>
+                #{tag}
+              </a>
+            </li>
+          ))}
+        </ul>
+      )
+    }
+  </div>
+</li>

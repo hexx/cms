@@ -1,0 +1,26 @@
+---
+import { absoluteUrl } from '@hexx/shared';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { collectTags, getPublishedDocuments } from '../../lib/documents';
+
+const tags = collectTags(await getPublishedDocuments());
+---
+
+<BaseLayout title="タグ" canonical={absoluteUrl('/tags')} description="タグの一覧。">
+  <h1 class="page-title">タグ</h1>
+  {
+    tags.length === 0 ? (
+      <p class="lede">まだタグがありません。</p>
+    ) : (
+      <ul class="tag-list">
+        {tags.map(({ tag, count }) => (
+          <li>
+            <a class="tag" href={`/tags/${encodeURIComponent(tag)}`}>
+              #{tag} ({count})
+            </a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</BaseLayout>

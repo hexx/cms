@@ -1,0 +1,10 @@
+---
+import { absoluteUrl } from '@hexx/shared';
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="404" canonical={absoluteUrl('/404')} description="ページが見つかりません。">
+  <h1 class="page-title">404 — 見つかりません</h1>
+  <p class="lede">お探しのページは、まだ書かれていないか、引っ越した可能性があります。</p>
+  <p><a class="back-link" href="/">← ホームへ</a></p>
+</BaseLayout>

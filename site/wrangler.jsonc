@@ -1,0 +1,12 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "hexx-blog",
+  "compatibility_date": "2026-09-01",
+  // 静的アセットのみの Worker。main を持たないためコードは一切動かない（ADR-0008）。
+  "assets": {
+    "directory": "./dist",
+    // canonical URL は末尾スラッシュなし。/foo/ を /foo へ寄せ、/foo は foo/index.html から配る。
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "404-page"
+  }
+}

@@ -1,0 +1,40 @@
+---
+interface Props {
+  url: string;
+  title: string;
+}
+
+const { url, title } = Astro.props;
+const text = encodeURIComponent(title);
+const encodedUrl = encodeURIComponent(url);
+const blueskyIntent = `https://bsky.app/intent/compose?text=${text}%20${encodedUrl}`;
+const xIntent = `https://x.com/intent/post?text=${text}&url=${encodedUrl}`;
+---
+
+<div class="actions">
+  <a class="button" href={blueskyIntent} target="_blank" rel="noopener noreferrer">Bluesky で共有</a>
+  <a class="button" href={xIntent} target="_blank" rel="noopener noreferrer">X に投稿</a>
+  <button class="button" type="button" data-copy-url={url}>URL をコピー</button>
+  <span class="button" data-copy-status hidden>コピーしました</span>
+</div>
+
+<script>
+  const buttons = document.querySelectorAll<HTMLButtonElement>('[data-copy-url]');
+  for (const button of buttons) {
+    button.addEventListener('click', async () => {
+      const url = button.dataset.copyUrl;
+      if (!url) return;
+      try {
+        await navigator.clipboard.writeText(url);
+      } catch {
+        return;
+      }
+      const status = button.parentElement?.querySelector<HTMLElement>('[data-copy-status]');
+      if (!status) return;
+      status.hidden = false;
+      setTimeout(() => {
+        status.hidden = true;
+      }, 2000);
+    });
+  }
+</script>
