@@ -1,0 +1,95 @@
+---
+import { IS_PLACEHOLDER_PUBLICATION, PDS_HOST, PUBLICATION_AT_URI } from '@hexx/shared';
+
+interface Props {
+  url: string;
+  title: string;
+  /** Document Record の rkey。bskyPostRef の逆引きに使う */
+  slug: string;
+}
+
+const { url, title, slug } = Astro.props;
+const text = encodeURIComponent(title);
+const encodedUrl = encodeURIComponent(url);
+const blueskyIntent = `https://bsky.app/intent/compose?text=${text}%20${encodedUrl}`;
+const xIntent = `https://x.com/intent/post?text=${text}&url=${encodedUrl}`;
+const did = PUBLICATION_AT_URI.replace(/^at:\/\//, '').split('/')[0] ?? '';
+---
+
+<div class="actions">
+  <a class="button" href={blueskyIntent} target="_blank" rel="noopener noreferrer">Bluesky で共有</a>
+  <a class="button" href={xIntent} target="_blank" rel="noopener noreferrer">X に投稿</a>
+  <button class="button" type="button" data-copy-url={url}>URL をコピー</button>
+  <span class="button" data-copy-status hidden>コピーしました</span>
+  {
+    !IS_PLACEHOLDER_PUBLICATION && (
+      <a
+        class="button"
+        data-bsky-thread
+        data-bsky-did={did}
+        data-bsky-slug={slug}
+        data-bsky-host={PDS_HOST}
+        href="https://bsky.app"
+        target="_blank"
+        rel="noopener noreferrer"
+        hidden
+      >
+        Bluesky で議論する
+      </a>
+    )
+  }
+</div>
+
+<script>
+  // Document Record を公開 PDS から読み、bskyPostRef があればスレッドへのリンクを出す。
+  // レコードが無い・通信できない・JS 無効のときは何も出さない（プログレッシブエンハンスメント）。
+  for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-bsky-thread]')) {
+    const did = link.dataset.bskyDid;
+    const slug = link.dataset.bskySlug;
+    const host = link.dataset.bskyHost ?? 'bsky.social';
+    if (!did || !slug) continue;
+
+    const endpoint = `https://${host}/xrpc/com.atproto.repo.getRecord?repo=${encodeURIComponent(
+      did,
+    )}&collection=site.standard.document&rkey=${encodeURIComponent(slug)}`;
+
+    fetch(endpoint, { headers: { Accept: 'application/json' } })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        const uri: unknown = data?.value?.bskyPostRef?.uri;
+        if (typeof uri !== 'string') return;
+        const rkey = uri.split('/').pop();
+        if (!rkey) return;
+        link.href = `https://bsky.app/profile/${did}/post/${rkey}`;
+        link.hidden = false;
+      })
+      .catch(() => {
+        // 表示しないだけ。読者にエラーを見せる必要はない
+      });
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-copy-url]')) {
+    button.addEventListener('click', async () => {
+      const url = button.dataset.copyUrl;
+      if (!url) return;
+      const status = button.parentElement?.querySelector<HTMLElement>('[data-copy-status]');
+      const show = (message: string) => {
+        if (!status) return;
+        status.textContent = message;
+        status.hidden = false;
+        setTimeout(() => {
+          status.hidden = true;
+        }, 2000);
+      };
+
+      try {
+        if (!navigator.clipboard) throw new Error('clipboard unavailable');
+        await navigator.clipboard.writeText(url);
+        show('コピーしました');
+      } catch {
+        // 非 HTTPS や権限拒否でも操作が無反応に見えないようにする
+        show('コピーできませんでした');
+      }
+    });
+  }
+</script>

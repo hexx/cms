@@ -1,0 +1,46 @@
+---
+import { CONFIG, absoluteUrl } from '@hexx/shared';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'ProfilePage',
+  mainEntity: {
+    '@type': 'Person',
+    name: CONFIG.author.name,
+    url: absoluteUrl(CONFIG.author.url),
+    sameAs: CONFIG.relMe,
+  },
+};
+---
+
+<BaseLayout title="About" canonical={absoluteUrl('/about')} jsonLd={jsonLd}>
+  <h1 class="page-title">About</h1>
+  <div class="post-body">
+    <p>
+      このサイトは <a href={CONFIG.siteUrl}>{CONFIG.name}</a> の個人ブログです。
+      <a href="https://standard.site/">standard.site</a>
+      に対応しており、記事は AT Protocol 上のレコードとしても公開されています。
+    </p>
+    <p>
+      ここは仮の文章です。<code>site/src/pages/about.astro</code> を書き換えてください。
+    </p>
+    <h2>見つける</h2>
+    <ul>
+      <li><a href="/feed.xml">RSS</a></li>
+      <li><a href="/feed.json">JSON Feed</a></li>
+    </ul>
+    <h2>いる場所</h2>
+    <ul>
+      {
+        CONFIG.relMe.map((href) => (
+          <li>
+            <a href={href} rel="me">
+              {href}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</BaseLayout>

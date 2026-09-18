@@ -1,0 +1,96 @@
+---
+import { render, type CollectionEntry } from 'astro:content';
+import {
+  CONFIG,
+  PUBLICATION_AT_URI,
+  absoluteUrl,
+  documentAtUri,
+  formatJstDate,
+} from '@hexx/shared';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ShareActions from '../components/ShareActions.astro';
+import type { Document } from '../lib/documents';
+
+interface Props {
+  doc: Document;
+}
+
+const { doc } = Astro.props;
+// posts と notes は同じスキーマなので、render の型を満たすために代表させている
+const { Content } = await render(doc.entry as CollectionEntry<'posts'>);
+const recordUri = documentAtUri(PUBLICATION_AT_URI, doc.slug);
+const publishedAt = doc.publishedAt;
+const updatedAt = doc.updatedAt;
+const kindLabel = doc.kind === 'post' ? 'Post' : 'Note';
+const backHref = doc.kind === 'post' ? '/posts' : '/notes';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BlogPosting',
+  headline: doc.title,
+  ...(doc.description ? { description: doc.description } : {}),
+  datePublished: publishedAt.toISOString(),
+  dateModified: (updatedAt ?? publishedAt).toISOString(),
+  inLanguage: doc.lang,
+  mainEntityOfPage: doc.url,
+  url: doc.url,
+  image: absoluteUrl(doc.coverImage ?? CONFIG.defaultOgImage),
+  ...(doc.tags.length > 0 ? { keywords: doc.tags } : {}),
+  author: {
+    '@type': 'Person',
+    name: CONFIG.author.name,
+    url: absoluteUrl(CONFIG.author.url),
+  },
+};
+---
+
+<BaseLayout
+  title={doc.title}
+  description={doc.description}
+  canonical={doc.url}
+  ogType="article"
+  coverImage={doc.coverImage}
+  documentAtUri={recordUri}
+  publishedAt={publishedAt}
+  jsonLd={jsonLd}
+>
+  <article>
+    <header>
+      <div class="doc-card__kind">{kindLabel}</div>
+      <h1 class="post-title">{doc.title}</h1>
+      <div class="post-meta">
+        <time datetime={publishedAt.toISOString()}>{formatJstDate(publishedAt)}</time>
+        {
+          updatedAt && (
+            <span>
+              更新: <time datetime={updatedAt.toISOString()}>{formatJstDate(updatedAt)}</time>
+            </span>
+          )
+        }
+        {
+          doc.tags.length > 0 && (
+            <ul class="tag-list">
+              {doc.tags.map((tag) => (
+                <li>
+                  <a class="tag" href={`/tags/${encodeURIComponent(tag)}`}>
+                    #{tag}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )
+        }
+      </div>
+    </header>
+
+    <div class="post-body">
+      <Content />
+    </div>
+
+    <ShareActions url={doc.url} title={doc.title} slug={doc.slug} />
+
+    <p style="margin-top: 2rem">
+      <a class="back-link" href={backHref}>← {kindLabel} 一覧へ</a>
+    </p>
+  </article>
+</BaseLayout>

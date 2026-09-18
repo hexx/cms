@@ -1,0 +1,24 @@
+---
+import type { Document } from '../lib/documents';
+import DocumentCard from './DocumentCard.astro';
+
+interface Props {
+  documents: Document[];
+  /** 空のときのメッセージ */
+  emptyMessage?: string;
+}
+
+const { documents, emptyMessage = 'まだ何もありません。' } = Astro.props;
+---
+
+{
+  documents.length === 0 ? (
+    <p class="lede">{emptyMessage}</p>
+  ) : (
+    <ul class="doc-list">
+      {documents.map((doc) => (
+        <DocumentCard doc={doc} />
+      ))}
+    </ul>
+  )
+}

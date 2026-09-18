@@ -1,0 +1,23 @@
+{
+  "name": "cms",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "site",
+    "syndicator"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace site",
+    "build": "npm run build --workspace site",
+    "validate": "npm run validate --workspace site",
+    "test": "npm run test --workspace packages/shared && npm run test --workspace site && npm run test --workspace syndicator",
+    "lint": "oxlint site/src site/scripts packages/shared/src syndicator/src syndicator/scripts --deny-warnings",
+    "typecheck": "npm run typecheck --workspace packages/shared && npm run typecheck --workspace site && npm run typecheck --workspace syndicator",
+    "db:local": "npm run db:migrate:local --workspace syndicator",
+    "db:remote": "npm run db:migrate:remote --workspace syndicator"
+  },
+  "devDependencies": {
+    "oxlint": "^1.83.0"
+  }
+}

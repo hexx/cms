@@ -1,0 +1,16 @@
+---
+import ArticleView from '../../../../components/ArticleView.astro';
+import { filterByKind, getPublishedDocuments } from '../../../../lib/documents';
+
+export async function getStaticPaths() {
+  const documents = filterByKind(await getPublishedDocuments(), 'post');
+  return documents.map((doc) => ({
+    params: { year: doc.year, month: doc.month, slug: doc.slug },
+    props: { doc },
+  }));
+}
+
+const { doc } = Astro.props;
+---
+
+<ArticleView doc={doc} />

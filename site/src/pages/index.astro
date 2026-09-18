@@ -1,0 +1,30 @@
+---
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL, absoluteUrl } from '@hexx/shared';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import DocumentList from '../components/DocumentList.astro';
+import { getPublishedDocuments } from '../lib/documents';
+
+const documents = await getPublishedDocuments();
+const latest = documents.slice(0, 20);
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Blog',
+  name: SITE_NAME,
+  url: SITE_URL,
+  description: SITE_DESCRIPTION,
+};
+---
+
+<BaseLayout canonical={absoluteUrl('/')} jsonLd={jsonLd}>
+  <h1 class="page-title">{SITE_NAME}</h1>
+  <p class="lede">{SITE_DESCRIPTION}</p>
+
+  <DocumentList documents={latest} emptyMessage="まだ記事がありません。" />
+
+  <p style="margin-top: 2.5rem">
+    <a class="back-link" href="/posts">記事のみ</a> ·
+    <a class="back-link" href="/notes">ノートのみ</a> ·
+    <a class="back-link" href="/feed.xml">RSS</a>
+  </p>
+</BaseLayout>

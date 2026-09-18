@@ -1,0 +1,14 @@
+---
+import { absoluteUrl } from '@hexx/shared';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import DocumentList from '../../components/DocumentList.astro';
+import { filterByKind, getPublishedDocuments } from '../../lib/documents';
+
+const documents = filterByKind(await getPublishedDocuments(), 'post');
+---
+
+<BaseLayout title="記事" canonical={absoluteUrl('/posts')} description="長文の記事一覧。">
+  <h1 class="page-title">記事</h1>
+  <p class="lede">長めに書いたもの。</p>
+  <DocumentList documents={documents} emptyMessage="まだ記事がありません。" />
+</BaseLayout>

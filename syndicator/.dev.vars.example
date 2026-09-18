@@ -1,0 +1,20 @@
+# ローカル検証用の上書き（git 管理外の .dev.vars にコピーして使う）
+# サイトをローカルで配信しているときは FEED_URL をローカルに向ける
+FEED_URL=http://127.0.0.1:8789/feed-all.json
+DRY_RUN=true
+SYNDICATE_SECRET=local-secret
+ADMIN_TOKEN=local-token
+ENABLED_DESTINATIONS=bluesky
+
+# 実配信を試すときに埋める（DRY_RUN=false にする）
+BSKY_HANDLE=your-handle.bsky.social
+BSKY_APP_PASSWORD=xxxx-xxxx-xxxx-xxxx
+# MASTODON_INSTANCE_URL=https://mastodon.example
+MASTODON_TOKEN=
+# MISSKEY_INSTANCE_URL=https://misskey.io
+MISSKEY_TOKEN=
+# NOSTR_NSEC=nsec1...
+# NOSTR_RELAYS=wss://yabu.me,wss://relay.damus.io
+# DISCORD_WEBHOOK_URL=
+# DISCORD_NOTIFY_WEBHOOK_URL=
+# THREADS_USER_ID=

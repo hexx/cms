@@ -1,0 +1,29 @@
+---
+import { absoluteUrl } from '@hexx/shared';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import DocumentList from '../../components/DocumentList.astro';
+import { collectTags, getPublishedDocuments } from '../../lib/documents';
+
+export async function getStaticPaths() {
+  const documents = await getPublishedDocuments();
+  return collectTags(documents).map(({ tag }) => ({
+    params: { tag },
+    props: {
+      tag,
+      documents: documents.filter((doc) => doc.tags.includes(tag)),
+    },
+  }));
+}
+
+const { tag, documents } = Astro.props;
+---
+
+<BaseLayout
+  title={`#${tag}`}
+  canonical={absoluteUrl(`/tags/${encodeURIComponent(tag)}`)}
+  description={`タグ「${tag}」の一覧。`}
+>
+  <h1 class="page-title">#{tag}</h1>
+  <DocumentList documents={documents} />
+  <p style="margin-top: 2.5rem"><a class="back-link" href="/tags">← タグ一覧へ</a></p>
+</BaseLayout>
