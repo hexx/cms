@@ -1,6 +1,7 @@
 # hexx.jp ブログ & 配信システム 仕様
 
-> 用語は [CONTEXT.md](../CONTEXT.md)、決定の理由は [docs/adr/](./adr/) を参照。
+> 用語は [CONTEXT.md](../CONTEXT.md)、決定の理由は [docs/adr/](./adr/)、
+> 日々の運用手順は [runbook.md](./runbook.md) を参照。
 > 本書は「何を作るか」の単一の正典。
 
 ---
@@ -262,7 +263,7 @@ lang: ja                      # 任意, 既定 ja
 | POST | `/v1/credentials/threads` | Bearer | Threads の長期トークンを登録（初回。以後は run が自動更新する） |
 | GET | `/admin` | Cloudflare Access | 管理画面（Delivery 一覧 + 実行履歴 + 再送ボタン） |
 | POST | `/admin/deliveries/:id/retry` | Cloudflare Access | 管理画面からの再送 |
-| POST | `/v1/backfill` | Bearer | 過去分の配信（P5） |
+| POST | `/v1/backfill` | Bearer | 過去分の配信。まだ Delivery が無いものを予約し、`force` で送信済みもやり直す |
 
 ---
 
@@ -336,6 +337,8 @@ CREATE TABLE run_log (
 ```
 
 Cron トリガーは10分ごとに1本。`delivery` の due な行の処理と、フィード差分の回収を兼ねる。
+
+**緊急停止**: `ENABLED_DESTINATIONS` に明示的な空文字を入れると何も配信しなくなる（未設定のときは `bluesky` にフォールバックするので、「未設定」と「空」で意味が違う）。Cron ごと止めるときは `triggers.crons` を空にしてデプロイする。
 
 ---
 
@@ -424,7 +427,8 @@ cms/
 |---|---|
 | 通知 | Discord へ「配信サマリ（成功/失敗/スキップ）」「最終失敗（dead）」「削除伝播の結果」「Backfill 完了」。`DISCORD_NOTIFY_WEBHOOK_URL` を設定すると配信先チャンネルと分けられる（未設定なら `DISCORD_WEBHOOK_URL` に同居） |
 | 管理画面 | `syndicator.hexx.jp/admin`（Cloudflare Access）。Delivery 一覧と再送ボタン |
-| ログ | Workers Logs（Workers Paid: 20M events/月、7日保持） |
+| ログ | Workers Logs（Workers Paid: 20M events/月、7日保持）。`run_log` は 30 日分だけ残す |
+| 手順書 | [runbook.md](./runbook.md)（公開・修正・削除・再送・Backfill・ローテーション・緊急停止・復元） |
 | バックアップ | D1 Time Travel（7日）+ 月次の `wrangler d1 export` を手元に保存 |
 | 監視 | `GET /health`。Cron が動いていることは Discord の失敗通知で検知 |
 | ドメイン | 自動更新 + 支払い方法の維持（失効＝ATProto ハンドルと検証が壊れる） |

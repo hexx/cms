@@ -10,6 +10,7 @@ import {
   markRecordDeleted,
   markRepublished,
   markUnpublished,
+  pruneRunLog,
   scheduleDeletionForPath,
   setRecordHash,
   updateSnapshotContent,
@@ -166,6 +167,8 @@ export async function runAndRecord(ctx: RunContext): Promise<RunSummary> {
       trigger: ctx.trigger,
       summary: JSON.stringify(summary),
     });
+    // 実行履歴は 30 日分だけ残す（10分ごとに走るので放っておくと増え続ける）
+    await pruneRunLog(ctx.env.DB, new Date(ctx.now.getTime() - 30 * 24 * 3_600_000).toISOString());
 
     const changed =
       summary.insert + summary.update + summary.unpublish + summary.records > 0 ||

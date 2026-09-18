@@ -15,7 +15,7 @@ export async function getSnapshot(db: D1Database, path: string): Promise<Snapsho
 export async function insertSnapshot(db: D1Database, entry: FeedEntry, now: string): Promise<void> {
   await db
     .prepare(
-      `INSERT INTO document_snapshot (
+      `INSERT OR IGNORE INTO document_snapshot (
          path, kind, slug, title, description, tags, cover_image_url, text_content,
          published_at, updated_at, content_hash, record_hash, first_seen_at, unpublished_at
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NULL)`,
@@ -309,6 +309,48 @@ export async function setDeliveryAction(
   action: DeliveryAction,
 ): Promise<void> {
   await db.prepare('UPDATE delivery SET action = ? WHERE id = ?').bind(action, id).run();
+}
+
+// ---- backfill / 運用 ----
+
+export async function getDeliveryFor(
+  db: D1Database,
+  path: string,
+  destination: string,
+): Promise<DeliveryRow | null> {
+  return db
+    .prepare('SELECT * FROM delivery WHERE path = ? AND destination = ?')
+    .bind(path, destination)
+    .first<DeliveryRow>();
+}
+
+/** 既存の Delivery をやり直しできる状態に戻す（Backfill の force 用） */
+export async function resetDelivery(
+  db: D1Database,
+  path: string,
+  destination: string,
+  now: string,
+): Promise<void> {
+  await db
+    .prepare(
+      `UPDATE delivery SET action = 'publish', status = 'pending', attempt = 0,
+         error = NULL, next_attempt_at = ?, updated_at = ?
+       WHERE path = ? AND destination = ?`,
+    )
+    .bind(now, now, path, destination)
+    .run();
+}
+
+export async function lastRunStartedAt(db: D1Database): Promise<string | null> {
+  const row = await db
+    .prepare('SELECT started_at FROM run_log ORDER BY id DESC LIMIT 1')
+    .first<{ started_at: string }>();
+  return row?.started_at ?? null;
+}
+
+/** 古い実行履歴を消す（Cron が 10 分ごとなので放っておくと増え続ける） */
+export async function pruneRunLog(db: D1Database, before: string): Promise<void> {
+  await db.prepare('DELETE FROM run_log WHERE started_at < ?').bind(before).run();
 }
 
 // ---- credential（自動更新が必要な資格情報） ----

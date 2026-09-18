@@ -70,9 +70,13 @@ export function isDryRun(env: Env): boolean {
   return env.DRY_RUN === 'true';
 }
 
+/**
+ * 有効な Destination。
+ * 未設定なら bluesky、明示的に空文字なら「何も配信しない」（緊急停止に使う）。
+ */
 export function enabledDestinations(env: Env): DestinationId[] {
   const raw = env.ENABLED_DESTINATIONS;
-  if (!raw) return ['bluesky'];
+  if (raw === undefined) return ['bluesky'];
   return raw
     .split(',')
     .map((value) => value.trim())

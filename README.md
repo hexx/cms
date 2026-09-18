@@ -3,6 +3,7 @@
 hexx.jp の個人ブログ。Markdown を git に置き、Cloudflare Workers の静的アセットとして配り、公開した記事を standard.site のレコードとして AT Protocol に登録し、各 SNS へ配信する。
 
 - 仕様: [docs/spec.md](./docs/spec.md)
+- 運用手順: [docs/runbook.md](./docs/runbook.md)
 - 決定の記録: [docs/adr/](./docs/adr/)
 - 用語: [CONTEXT.md](./CONTEXT.md)
 
@@ -20,7 +21,7 @@ syndicator/        Cloudflare Worker。ATProto レコードの書き込みと SN
 | P2 | Syndicator（D1、差分検出、publication/document レコード、Bluesky 配信、Cron、`/admin`、dry-run） | ✅ |
 | P3 | Mastodon / Misskey / Nostr | ✅ |
 | P4 | Threads / Discord 配信 / X 手動ボタン | ✅ |
-| P5 | 削除伝播の全宛先化、Backfill、Runbook | 未着手 |
+| P5 | 削除伝播（全宛先）、Backfill、管理画面、Runbook | ✅ |
 
 ## セットアップ
 
@@ -142,8 +143,19 @@ curl -H 'Authorization: Bearer local-token' http://127.0.0.1:8790/v1/deliveries
 
 `DRY_RUN=true` では送信もレコード書き込みもせず、計画と送信内容だけを記録する。
 
+### Backfill（後から宛先を足したとき）
+
+```bash
+curl -X POST https://syndicator.hexx.jp/v1/backfill \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"destination":"nostr","since":"2026-01-01T00:00:00.000Z"}'
+```
+
+まだ Delivery が無い記事だけを予約する。送信済みも送り直したいときだけ `"force": true` を付ける。
+
 ### 運用
 
 - 管理画面: `https://syndicator.hexx.jp/admin`（Cloudflare Access で保護する。`/admin*` にアプリを張る）
+- 手順書: [docs/runbook.md](./docs/runbook.md)（失敗時の切り分け、再送、ローテーション、緊急停止、D1 の復元）
 - 配信の失敗は指数バックオフ（1分 → 5分 → 30分 → 2時間 → 12時間）で再試行し、5回失敗で `dead` + Discord 通知
 - フィードが空になったときは削除伝播をしない（壊れたデプロイで全記事を消さないための安全装置）

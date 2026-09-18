@@ -1,5 +1,6 @@
 import { listDeliveries, listRunLogs } from './db.ts';
-import type { Env } from './env.ts';
+import { DESTINATIONS } from './destinations/index.ts';
+import { ALL_DESTINATIONS, enabledDestinations, type Env } from './env.ts';
 
 function escapeHtml(value: string): string {
   return value
@@ -52,6 +53,23 @@ export async function renderAdmin(env: Env): Promise<string> {
     )
     .join('\n');
 
+  const enabled = new Set(enabledDestinations(env));
+  const destinationRows = ALL_DESTINATIONS.map((id) => {
+    const destination = DESTINATIONS[id];
+    const configured = destination ? destination.isConfigured(env) : false;
+    const status = !destination
+      ? '<span class="err">未実装</span>'
+      : configured
+        ? '<span class="s-sent">設定済み</span>'
+        : '<span class="s-pending">資格情報なし</span>';
+    return `<tr>
+      <td>${escapeHtml(id)}</td>
+      <td>${enabled.has(id) ? '有効' : '無効'}</td>
+      <td>${destination ? 'あり' : '—'}</td>
+      <td>${status}</td>
+    </tr>`;
+  }).join('\n');
+
   const runRows = runs
     .map(
       (row) => `<tr>
@@ -95,6 +113,12 @@ export async function renderAdmin(env: Env): Promise<string> {
   <p class="meta">dry-run: ${env.DRY_RUN === 'true' ? 'ON' : 'off'} / 有効な Destination: ${escapeHtml(
     env.ENABLED_DESTINATIONS ?? 'bluesky',
   )}</p>
+
+  <h2>Destination</h2>
+  <table>
+    <thead><tr><th>id</th><th>有効</th><th>実装</th><th>資格情報</th></tr></thead>
+    <tbody>${destinationRows}</tbody>
+  </table>
 
   <h2>Delivery（直近 200 件）</h2>
   <table>

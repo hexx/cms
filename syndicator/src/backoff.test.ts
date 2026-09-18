@@ -25,6 +25,10 @@ describe('enabledDestinations', () => {
     expect(enabledDestinations(env())).toEqual(['bluesky']);
   });
 
+  it('明示的な空文字なら何も配信しない（緊急停止）', () => {
+    expect(enabledDestinations(env(''))).toEqual([]);
+  });
+
   it('カンマ区切りを解釈し、未知の値は落とす', () => {
     expect(enabledDestinations(env('bluesky, mastodon,nope, nostr'))).toEqual([
       'bluesky',

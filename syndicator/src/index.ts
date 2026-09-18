@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { renderAdmin } from './admin.ts';
 import { putPublicationRecord } from './atproto.ts';
+import { runBackfill } from './backfill.ts';
 import { createContext } from './context.ts';
 import { setThreadsCredential } from './threads.ts';
-import { getDelivery, listDeliveries, listRunLogs, requeueDelivery } from './db.ts';
+import { getDelivery, lastRunStartedAt, listDeliveries, listRunLogs, requeueDelivery } from './db.ts';
 import { processOneDelivery } from './delivery.ts';
 import {
   enabledDestinations,
@@ -35,6 +36,9 @@ app.get('/health', (c) =>
   }),
 );
 
+/** 連続実行を防ぐ間隔。デプロイフックと Cron が重なっても片方は素通りさせる */
+const MIN_RUN_INTERVAL_MS = 30_000;
+
 /** デプロイフック / 外部トリガー。共有シークレットで保護する */
 app.post('/syndicate', async (c) => {
   const secret = c.env.SYNDICATE_SECRET;
@@ -44,6 +48,12 @@ app.post('/syndicate', async (c) => {
   }
 
   const context = createContext(c.env, c.req.header('x-syndicate-trigger') ?? 'deploy-hook');
+
+  const last = await lastRunStartedAt(c.env.DB);
+  if (last && context.now.getTime() - new Date(last).getTime() < MIN_RUN_INTERVAL_MS) {
+    return c.json({ skipped: 'recent-run', lastRunStartedAt: last }, 202);
+  }
+
   try {
     const summary = await runAndRecord(context);
     return c.json(summary);
@@ -89,6 +99,31 @@ app.post('/v1/deliveries/:id/retry', async (c) => {
 });
 
 app.get('/v1/runs', async (c) => c.json({ runs: await listRunLogs(c.env.DB, 50) }));
+
+/**
+ * 公開済み Document を後から追加した Destination へ流す。
+ * `force: true` は送信済みも含めてやり直す（削除後の復活など、明示的な操作に限る）。
+ */
+app.post('/v1/backfill', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as {
+    destination?: string;
+    since?: string;
+    force?: boolean;
+  } | null;
+  if (!body?.destination) return c.json({ error: 'destination は必須です' }, 400);
+
+  const context = createContext(c.env, 'backfill');
+  try {
+    const result = await runBackfill(context, {
+      destination: body.destination as never,
+      ...(body.since ? { since: body.since } : {}),
+      ...(body.force ? { force: true } : {}),
+    });
+    return c.json(result);
+  } catch (error) {
+    return c.json({ error: error instanceof Error ? error.message : String(error) }, 400);
+  }
+});
 
 /** Threads の長期トークンを登録する（初回は Meta 側で発行した値を渡す） */
 app.post('/v1/credentials/threads', async (c) => {
@@ -142,6 +177,8 @@ app.post('/admin/deliveries/:id/retry', async (c) => {
   }
   return c.redirect('/admin', 303);
 });
+
+export { app };
 
 export default {
   fetch: app.fetch,
