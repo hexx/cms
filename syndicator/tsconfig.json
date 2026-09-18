@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["src/**/*.ts", "scripts/**/*.mjs"]
+  "include": ["src/**/*.ts"]
 }

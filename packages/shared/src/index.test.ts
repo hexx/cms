@@ -71,6 +71,24 @@ describe('graphemeLength', () => {
   });
 });
 
+describe('documentPath / documentAtUri の検証', () => {
+  const date = new Date('2026-09-18T00:00:00Z');
+
+  it('スラッシュを含む slug（ネストしたファイル）を弾く', () => {
+    expect(() => documentPath('post', date, 'guides/intro')).toThrow(/1セグメント/);
+    expect(() => documentAtUri('at://did:plc:x/site.standard.publication/self', '../x')).toThrow();
+  });
+
+  it('大文字や日本語の slug を弾く（rkey の制約）', () => {
+    expect(() => documentPath('post', date, 'Hello')).toThrow();
+    expect(() => documentPath('post', date, 'こんにちは')).toThrow();
+  });
+
+  it('publication の AT-URI が不正なら弾く', () => {
+    expect(() => documentAtUri('not-an-at-uri', 'hello')).toThrow(/AT-URI/);
+  });
+});
+
 describe('documentFrontmatterSchema', () => {
   const base = { title: 'タイトル', publishedAt: '2026-09-01T12:00:00+09:00' };
 
@@ -94,6 +112,19 @@ describe('documentFrontmatterSchema', () => {
     );
     expect(documentFrontmatterSchema.safeParse({ ...base, coverImage: '/images/a.png' }).success).toBe(
       true,
+    );
+  });
+
+  it('タグに URL を壊す文字を許さない', () => {
+    expect(documentFrontmatterSchema.safeParse({ ...base, tags: ['a/b'] }).success).toBe(false);
+    expect(documentFrontmatterSchema.safeParse({ ...base, tags: ['a b'] }).success).toBe(false);
+    expect(documentFrontmatterSchema.safeParse({ ...base, tags: ['..'] }).success).toBe(false);
+    expect(documentFrontmatterSchema.safeParse({ ...base, tags: ['日本語タグ'] }).success).toBe(true);
+  });
+
+  it('coverImage は // で始まる URL を弾く', () => {
+    expect(documentFrontmatterSchema.safeParse({ ...base, coverImage: '//cdn.example/x.png' }).success).toBe(
+      false,
     );
   });
 

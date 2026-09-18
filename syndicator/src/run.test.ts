@@ -204,15 +204,16 @@ afterEach(() => {
 // ---- テスト ----
 
 describe('runSyndication: 差分と Delivery', () => {
-  it('新規 Document ごとに Delivery を作り、dry-run でも送信内容を記録する', async () => {
+  it('新規 Document ごとに Snapshot・レコード・Delivery を作って配信する', async () => {
     const db = createTestDb();
+    const fake = createFakeAgent();
     installFetch(buildFeed(SAMPLE_PATHS.map((path) => feedItem(path))));
 
-    const summary = await runSyndication(makeContext({ db, dryRun: true }));
+    const summary = await runSyndication(makeContext({ db, fake }));
 
     expect(summary.feedItems).toBe(3);
     expect(summary.insert).toBe(3);
-    expect(summary.records).toBe(0);
+    expect(summary.records).toBe(3);
     expect(summary.deliveries.sent).toBe(3);
     expect(summary.deliveries.retrying).toBe(0);
 
@@ -228,15 +229,44 @@ describe('runSyndication: 差分と Delivery', () => {
     ]);
 
     const records = await db.prepare('SELECT COUNT(*) AS n FROM document_record').first<{ n: number }>();
-    expect(records?.n).toBe(0);
+    expect(records?.n).toBe(3);
+  });
+
+  it('dry-run は D1 を一切書き換えない', async () => {
+    const db = createTestDb();
+    installFetch(buildFeed(SAMPLE_PATHS.map((path) => feedItem(path))));
+
+    const summary = await runSyndication(makeContext({ db, dryRun: true }));
+
+    // 計画は報告するが、状態は残さない
+    expect(summary.dryRun).toBe(true);
+    expect(summary.insert).toBe(3);
+    expect(summary.records).toBe(3);
+
+    for (const table of ['document_snapshot', 'document_record', 'delivery', 'run_log']) {
+      const row = await db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{ n: number }>();
+      expect(row?.n, `${table} は空のまま`).toBe(0);
+    }
+  });
+
+  it('dry-run のあとに本番 run を流すと、通常どおり配信される', async () => {
+    const db = createTestDb();
+    const fake = createFakeAgent();
+    installFetch(buildFeed(SAMPLE_PATHS.map((path) => feedItem(path))));
+    await runSyndication(makeContext({ db, dryRun: true }));
+
+    const summary = await runSyndication(makeContext({ db, fake }));
+    expect(summary.insert).toBe(3);
+    expect(summary.deliveries.sent).toBe(3);
   });
 
   it('2 回目は差分が無いので何も配信しない（冪等）', async () => {
     const db = createTestDb();
+    const fake = createFakeAgent();
     installFetch(buildFeed(SAMPLE_PATHS.map((path) => feedItem(path))));
-    await runSyndication(makeContext({ db, dryRun: true }));
+    await runSyndication(makeContext({ db, fake }));
 
-    const second = await runSyndication(makeContext({ db, dryRun: true }));
+    const second = await runSyndication(makeContext({ db, fake }));
     expect(second.insert).toBe(0);
     expect(second.update).toBe(0);
     expect(second.deliveries.processed).toBe(0);
@@ -244,8 +274,9 @@ describe('runSyndication: 差分と Delivery', () => {
 
   it('内容が変わったら update になり、SNS へは再投稿しない', async () => {
     const db = createTestDb();
+    const fake = createFakeAgent();
     installFetch(buildFeed(SAMPLE_PATHS.map((path) => feedItem(path))));
-    await runSyndication(makeContext({ db, dryRun: true }));
+    await runSyndication(makeContext({ db, fake }));
 
     installFetch(
       buildFeed(
@@ -254,7 +285,7 @@ describe('runSyndication: 差分と Delivery', () => {
         ),
       ),
     );
-    const second = await runSyndication(makeContext({ db, dryRun: true }));
+    const second = await runSyndication(makeContext({ db, fake }));
 
     expect(second.update).toBe(1);
     expect(second.deliveries.processed).toBe(0);
@@ -262,11 +293,12 @@ describe('runSyndication: 差分と Delivery', () => {
 
   it('フィードから消えたらレコードを消し、送信済みの投稿も取り消す', async () => {
     const db = createTestDb();
+    const fake = createFakeAgent();
     installFetch(buildFeed(SAMPLE_PATHS.map((path) => feedItem(path))));
-    await runSyndication(makeContext({ db, dryRun: true }));
+    await runSyndication(makeContext({ db, fake }));
 
     installFetch(buildFeed(SAMPLE_PATHS.slice(1).map((path) => feedItem(path))));
-    const second = await runSyndication(makeContext({ db, dryRun: true }));
+    const second = await runSyndication(makeContext({ db, fake }));
 
     expect(second.unpublish).toBe(1);
     expect(second.deliveries.deleted).toBe(1);
@@ -280,11 +312,12 @@ describe('runSyndication: 差分と Delivery', () => {
 
   it('フィードが空なら unpublish を見送る（壊れたデプロイで全消ししない）', async () => {
     const db = createTestDb();
+    const fake = createFakeAgent();
     installFetch(buildFeed(SAMPLE_PATHS.map((path) => feedItem(path))));
-    await runSyndication(makeContext({ db, dryRun: true }));
+    await runSyndication(makeContext({ db, fake }));
 
     installFetch(buildFeed([]));
-    const second = await runSyndication(makeContext({ db, dryRun: true }));
+    const second = await runSyndication(makeContext({ db, fake }));
 
     expect(second.skippedUnpublish).toBe(3);
     expect(second.unpublish).toBe(0);
@@ -405,7 +438,9 @@ describe('runSyndication: 複数の宛先', () => {
     DESTINATIONS.mastodon = {
       id: 'mastodon',
       label: 'Mastodon',
-      isConfigured: () => true,
+      async isConfigured() {
+        return true;
+      },
       async publish() {
         throw new Error('mastodon down');
       },
@@ -442,7 +477,9 @@ describe('runSyndication: 再試行', () => {
     DESTINATIONS.mastodon = {
       id: 'mastodon',
       label: 'Mastodon',
-      isConfigured: () => true,
+      async isConfigured() {
+        return true;
+      },
       async publish() {
         attempts += 1;
         throw new Error('boom');
@@ -450,9 +487,10 @@ describe('runSyndication: 再試行', () => {
       async remove() {},
     };
 
+    const fake = createFakeAgent();
     let now = new Date('2026-09-18T00:00:00.000Z');
     const first = await runSyndication(
-      makeContext({ db, dryRun: true, destinations: 'mastodon', now, notifications: true }),
+      makeContext({ db, fake, destinations: 'mastodon', now, notifications: true }),
     );
     expect(first.deliveries.retrying).toBe(1);
 
@@ -469,7 +507,7 @@ describe('runSyndication: 再試行', () => {
     for (let round = 0; round < 5; round += 1) {
       now = new Date(now.getTime() + 13 * 60 * 60 * 1000);
       await runSyndication(
-        makeContext({ db, dryRun: true, destinations: 'mastodon', now, notifications: true }),
+        makeContext({ db, fake, destinations: 'mastodon', now, notifications: true }),
       );
     }
 
@@ -489,7 +527,7 @@ describe('runSyndication: 再試行', () => {
     delete DESTINATIONS.threads;
     try {
       const summary = await runSyndication(
-        makeContext({ db, dryRun: true, destinations: 'threads', notifications: true }),
+        makeContext({ db, fake: createFakeAgent(), destinations: 'threads', notifications: true }),
       );
       expect(summary.deliveries.dead).toBe(1);
       expect(calls.some((url) => url.startsWith(DISCORD))).toBe(true);

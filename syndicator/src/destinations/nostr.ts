@@ -2,7 +2,6 @@ import { schnorr } from '@noble/curves/secp256k1.js';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bech32 } from '@scure/base';
 import type { RunContext } from '../context.ts';
-import type { Env } from '../env.ts';
 import { nostrRelays } from '../env.ts';
 import { composeSnsText, toHashtag } from '../text.ts';
 import type { DeliveryDocument } from '../types.ts';
@@ -53,7 +52,7 @@ function hexToBytes(hex: string): Uint8Array {
 export function decodeSecretKey(input: string): Uint8Array {
   const value = input.trim();
   if (value.startsWith('nsec1')) {
-    const decoded = bech32.decode(value, false);
+    const decoded = bech32.decode(value);
     if (decoded.prefix !== 'nsec') throw new Error(`nsec ではありません: ${decoded.prefix}`);
     const bytes = bech32.fromWords(decoded.words);
     if (bytes.length !== 32) throw new Error(`nsec の長さが不正です: ${bytes.length}`);
@@ -201,8 +200,8 @@ export const nostr: Destination = {
   id: 'nostr',
   label: 'Nostr',
 
-  isConfigured(env: Env): boolean {
-    return Boolean(env.NOSTR_NSEC);
+  async isConfigured(ctx): Promise<boolean> {
+    return Boolean(ctx.env.NOSTR_NSEC);
   },
 
   async publish(ctx, doc): Promise<PublishOutcome> {

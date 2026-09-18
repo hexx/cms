@@ -9,6 +9,9 @@ export const LIMITS = {
   tagGraphemes: 64,
 } as const;
 
+/** タグは URL のセグメントとハッシュタグの両方に使うので、形を絞る */
+export const TAG_PATTERN = /^[^\s/#?]+$/u;
+
 const withinGraphemes = (max: number, label: string) =>
   z.string().refine((v) => graphemeLength(v) <= max, {
     message: `${label} は ${max} グラフェム以内にしてください`,
@@ -23,11 +26,22 @@ export const documentFrontmatterSchema = z
     title: withinGraphemes(LIMITS.titleGraphemes, 'title'),
     publishedAt: z.coerce.date(),
     description: withinGraphemes(LIMITS.descriptionGraphemes, 'description').optional(),
-    tags: z.array(withinGraphemes(LIMITS.tagGraphemes, 'tag')).max(LIMITS.tags).optional(),
+    tags: z
+      .array(
+        withinGraphemes(LIMITS.tagGraphemes, 'tag').refine(
+          (v) => TAG_PATTERN.test(v) && v !== '.' && v !== '..',
+          { message: 'tag に空白・スラッシュ・? ・# は使えません（. と .. も不可）' },
+        ),
+      )
+      .max(LIMITS.tags)
+      .optional(),
     /** `site/public` 配下の絶対パス（例: /images/cover.png） */
-    coverImage: z.string().refine((v) => v.startsWith('/'), {
-      message: 'coverImage は / から始まる site/public 配下のパスにしてください',
-    }).optional(),
+    coverImage: z
+      .string()
+      .refine((v) => v.startsWith('/') && !v.startsWith('//'), {
+        message: 'coverImage は / から始まる site/public 配下のパスにしてください（// で始まる URL は不可）',
+      })
+      .optional(),
     updatedAt: z.coerce.date().optional(),
     draft: z.boolean().default(false),
     lang: z.string().default('ja'),

@@ -51,6 +51,8 @@ URL と slug は変えない。
 | `401` / `403` | `wrangler tail` | トークンの失効。再発行して secret を更新 |
 | `429` | エラー本文 | レート制限。時間を置いて再送（下記） |
 | `Threads のアクセストークンがありません` | `credential` テーブル | 「Threads のトークン」節の手順で登録 |
+| `ログイン中のアカウント…が publication の DID…と一致しません` | `BSKY_HANDLE` と `publicationAtUri` | 別アカウントに書かないための安全装置。どちらかを直す |
+| `送信中に中断されたため再試行します` | 前回の run が落ちた | 自動で再試行される。外部側が成功していた場合は重複投稿の可能性があるので、その宛先だけ確認する |
 | Bluesky だけ `RecordNotFound` | `bskyPostRef` の書き戻し | 配信自体は成功している。ログの警告を確認 |
 
 **再送**:
@@ -67,6 +69,8 @@ curl -X POST https://syndicator.hexx.jp/v1/backfill \
 ```
 
 管理画面の「再送」ボタンでも同じことができる。
+
+⚠️ **Threads は再送の前に手動で確認する。** Threads API には冪等キーが無く、タイムアウトしたときに実際は投稿されていた場合、再送で二重に投稿される。他の宛先は Mastodon の `Idempotency-Key`、Nostr のイベント id、Discord のメッセージ id で追跡できる。
 
 ---
 
@@ -148,6 +152,7 @@ curl -X POST https://syndicator.hexx.jp/v1/credentials/threads \
 | Cron を止める | `syndicator/wrangler.jsonc` の `triggers.crons` を `[]` にしてデプロイ |
 | サイトごと止める | Cloudflare の blog Worker を削除、または DNS を外す（**ドメインと ATProto ハンドルは残す**） |
 | 特定の宛先だけ止める | `ENABLED_DESTINATIONS` から外す（その宛先の pending は残り、戻せば再開する） |
+| 緊急に全停止 | `ENABLED_DESTINATIONS` を空にする + `triggers.crons` を空にしてデプロイ（サイトは配信され続ける） |
 
 止めている間も `delivery` は `pending` のまま溜まる。戻したときに一気に流れるので、
 長期間止めたあとは `since` を付けた Backfill の方が安全なこともある。
@@ -164,6 +169,13 @@ curl -X POST https://syndicator.hexx.jp/v1/credentials/threads \
 3. `curl https://hexx.jp/.well-known/site.standard.publication` が AT-URI を返すか確認
 
 ---
+
+## 知っておくべき制約
+
+- **Nostr の削除はベストエフォート**。受理したリレーを記録していないため、削除イベントは現在のリレー群にしか届かない。設定から外したリレーには残りうる。
+- **Threads は冪等キーが無い**。`sending` のまま中断した Delivery を再試行すると重複投稿になりうる。
+- **dry-run は何も書き換えない**ので、`/v1/backfill` を dry-run で叩いても予定が返るだけ（`dryRun: true`）。
+- **ATProto のレコードは publication の DID にしか書かない**。`BSKY_HANDLE` が別アカウントだと run が失敗する（安全装置）。
 
 ## 障害の切り分け早見
 

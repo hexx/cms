@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "validate": "node scripts/validate-content.mjs",
+    "validate": "node scripts/gen-verification.mjs && node scripts/validate-content.mjs",
     "prebuild": "node scripts/gen-verification.mjs && node scripts/validate-content.mjs",
     "build": "astro build",
     "preview": "astro preview",

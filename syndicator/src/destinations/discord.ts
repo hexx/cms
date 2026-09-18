@@ -23,8 +23,8 @@ export const discord: Destination = {
   id: 'discord',
   label: 'Discord',
 
-  isConfigured(env: Env): boolean {
-    return Boolean(env.DISCORD_WEBHOOK_URL);
+  async isConfigured(ctx): Promise<boolean> {
+    return Boolean(ctx.env.DISCORD_WEBHOOK_URL);
   },
 
   async publish(ctx, doc): Promise<PublishOutcome> {
@@ -71,7 +71,9 @@ export const discord: Destination = {
   async remove(ctx, delivery): Promise<void> {
     const id = delivery.external_id;
     if (!id) return;
-    const url = `${webhookUrl(ctx.env)}/messages/${id}`;
+    // Webhook URL に ?thread_id=... が付いていても壊れないよう、パスを正しく差し込む
+    const base = webhookUrl(ctx.env);
+    const url = `${base.split('?')[0]}/messages/${id}${base.includes('?') ? `?${base.split('?')[1]}` : ''}`;
     if (ctx.dryRun) {
       ctx.log('info', '[dry-run] Discord のメッセージを削除します', { url });
       return;

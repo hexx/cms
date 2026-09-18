@@ -39,6 +39,10 @@ function nodeToText(node: MdNode): string {
       return '';
     case 'break':
       return '\n';
+    // 参照リンク（[text][ref]）は定義先の URL を持たないノードなので、表示テキストだけ残す
+    case 'linkReference': {
+      return (node.children ?? []).map(nodeToText).join('');
+    }
     case 'link': {
       const label = (node.children ?? []).map(nodeToText).join('');
       const url = node.url ?? '';

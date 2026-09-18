@@ -83,7 +83,7 @@
 | Bluesky 配信 | カード付きリンク投稿 | 本文そのままのテキスト投稿 |
 
 - `YYYY/MM` は `publishedAt` から決まる。
-- **slug はファイル名**。Post・Note をまたいで全体で一意（重複したらビルドを失敗させる）。ATProto の `rkey` 制約（`/` 不可）に合わせるため。
+- **slug はファイル名**で、小文字英数字と `. _ ~ -` だけの**1セグメント**（ネストしたディレクトリは不可）。Post・Note をまたいで全体で一意（重複したらビルドを失敗させる）。ATProto の `rkey` 制約に合わせるため。
 - **`publishedAt` は公開後に変更しない**。変更すると Canonical URL と standard.site の `path` が変わってしまうため。修正の記録は `updatedAt` で行う。
 
 ### 4.2 frontmatter（Astro Content Collections + zod で検証）
@@ -103,6 +103,7 @@ lang: ja                      # 任意, 既定 ja
 ```
 
 - 画像は `site/public/images/` に置き、Git で管理する。
+- `tags` は URL のセグメントとハッシュタグの両方に使うため、空白・`/`・`?`・`#`・`.` は使えない。
 - Note の本文は 140 graphemes 以内を推奨（SNS へそのまま流れるため）。
 - `draft: true` の Document はビルド対象外（URL も生成しない）。
 
@@ -202,12 +203,13 @@ lang: ja                      # 任意, 既定 ja
 | **Bluesky** | ATProto API（`@atproto/api`） | `BSKY_HANDLE`, `BSKY_APP_PASSWORD` | `com.atproto.repo.deleteRecord` |
 | **Mastodon** | REST `POST /api/v1/statuses` | `MASTODON_INSTANCE_URL`, `MASTODON_TOKEN` | `DELETE /api/v1/statuses/:id`（404/410 は成功扱い） |
 | **Misskey** | REST `POST /api/notes/create` | `MISSKEY_INSTANCE_URL`（既定 misskey.io）, `MISSKEY_TOKEN` | `POST /api/notes/delete`（`NO_SUCH_NOTE` は成功扱い） |
-| **Nostr** | relay へ kind:1 を publish | `NOSTR_NSEC`, `NOSTR_RELAYS` | kind:5（NIP-09） |
-| **Threads** | Graph API の2段階 publish（コンテナ作成 → publish。本文 500 字） | `THREADS_USER_ID`（vars）+ 長期トークン（**D1 の `credential` に保存**し、20時間以上経ったら run ごとに更新） | `DELETE /v1.0/:id`（404 は成功扱い） |
+| **Nostr** | relay へ kind:1 を publish（1つでも受理で成功） | `NOSTR_NSEC`, `NOSTR_RELAYS` | kind:5（NIP-09）。受理したリレーを記録していないため、削除は現在のリレー群への**ベストエフォート** |
+| **Threads** | Graph API の2段階 publish（コンテナ作成 → publish。本文 500 字）。**冪等キーが無い**ため、タイムアウト時は再試行で重複投稿になりうる → `dead` になったら手動で確認してから再送する | `THREADS_USER_ID`（vars）+ 長期トークン（**D1 の `credential` に保存**し、20時間以上経ったら run ごとに更新） | `DELETE /v1.0/:id`（404 は成功扱い） |
 | **Discord** | Incoming Webhook（`?wait=true` でメッセージ id を取る。embed 1枚） | `DISCORD_WEBHOOK_URL` | `DELETE /webhooks/.../messages/:id`（404 は成功扱い） |
 | **X** | **手動**（Web Intent ボタン） | なし | — |
 
 - 各 Destination は**独立**。1つの失敗が他を止めない。
+- `isConfigured(ctx)` は非同期。Threads のように資格情報を D1 に置く宛先があるため、env だけで判定しない。
 - 文面の組み立ては `syndicator/src/text.ts` に集約する。Post は `タイトル\nURL（+ タグ）`、Note は本文そのまま。上限に収まらないときは **URL > タイトル > ハッシュタグ** の順で守り、落とす（`composeLinkedPost`）。
 - アダプタは共通インターフェース `publish(doc, { dryRun })` / `remove(delivery)` を実装し、**dry-run では HTTP を送らずリクエスト内容を返す**。
 
@@ -239,8 +241,11 @@ lang: ja                      # 任意, 既定 ja
 
 ### 6.4 冪等性と再試行
 
+- 実行は **D1 の実行ロック**（`run_lock`）で直列化する。Cron とデプロイフックが重なったら片方は `202 skipped: locked` で素通りする。ロックは2分で期限切れになるので、Worker が落ちても固まらない。
+
 - `delivery` は `UNIQUE(path, destination)`。`pending → sending → sent`、失敗時は `attempt++` して `pending` に戻し `next_attempt_at` を設定。
-- バックオフは 1分 → 5分 → 30分 → 2時間 → 12時間。5回失敗で `dead` にし、Discord へ通知。
+- バックオフは 1分 → 5分 → 30分 → 2時間 → 12時間。**初回 + 最大5回の再試行**を行い、それでも失敗したら `dead` にして Discord へ通知する。
+- `sending` のまま10分以上経った Delivery は「中断された」とみなして `pending` に戻す（Worker の落ちやタイムアウトで永久に止まらないように）。外部側が実は成功していた場合は重複投稿になりうる。
 - **`sent` の Delivery は再送しない**（[ADR-0005](./adr/0005-delivery-state-in-d1.md)）。
 - Delivery の確保は `UPDATE ... WHERE id = ? AND status = 'pending'` の `meta.changes` で判定する。Cron とデプロイフックが同時に走っても二重送信しない。
 
@@ -261,8 +266,8 @@ lang: ja                      # 任意, 既定 ja
 | GET | `/v1/runs` | Bearer | 実行履歴（`run_log`） |
 | POST | `/v1/publication` | Bearer | Publication レコードの再同期（ブートストラップにも使う） |
 | POST | `/v1/credentials/threads` | Bearer | Threads の長期トークンを登録（初回。以後は run が自動更新する） |
-| GET | `/admin` | Cloudflare Access | 管理画面（Delivery 一覧 + 実行履歴 + 再送ボタン） |
-| POST | `/admin/deliveries/:id/retry` | Cloudflare Access | 管理画面からの再送 |
+| GET | `/admin` | Cloudflare Access（または Bearer） | 管理画面（Destination の状態 + Delivery 一覧 + 実行履歴 + 再送ボタン） |
+| POST | `/admin/deliveries/:id/retry` | Cloudflare Access（または Bearer） | 管理画面からの再送 |
 | POST | `/v1/backfill` | Bearer | 過去分の配信。まだ Delivery が無いものを予約し、`force` で送信済みもやり直す |
 
 ---

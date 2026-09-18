@@ -217,8 +217,18 @@ describe('refreshThreadsTokenIfNeeded', () => {
 });
 
 describe('threads.isConfigured', () => {
-  it('THREADS_USER_ID があるときだけ true', () => {
-    expect(threads.isConfigured({ THREADS_USER_ID: 'user-1' } as Env)).toBe(true);
-    expect(threads.isConfigured({} as Env)).toBe(false);
+  it('THREADS_USER_ID があれば true', async () => {
+    expect(await threads.isConfigured(context({ DB: createTestDb(), THREADS_USER_ID: 'user-1' }))).toBe(
+      true,
+    );
+  });
+
+  it('THREADS_USER_ID が無くても、D1 に資格情報があれば true', async () => {
+    const db = createTestDb();
+    const ctx = context({ DB: db });
+    expect(await threads.isConfigured(ctx)).toBe(false);
+
+    await setThreadsCredential(ctx, { userId: 'user-1', accessToken: 'token-1' }, null);
+    expect(await threads.isConfigured(ctx)).toBe(true);
   });
 });

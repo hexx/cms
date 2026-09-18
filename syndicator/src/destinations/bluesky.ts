@@ -1,7 +1,6 @@
 import { truncateGraphemes } from '@hexx/shared';
 import { getAgent, parseAtUri, uploadImage } from '../atproto.ts';
 import type { RunContext } from '../context.ts';
-import type { Env } from '../env.ts';
 import { didFromAtUri } from '../env.ts';
 import type { DeliveryDocument } from '../types.ts';
 import type { Destination, PublishOutcome } from './types.ts';
@@ -38,8 +37,8 @@ export const bluesky: Destination = {
   id: 'bluesky',
   label: 'Bluesky',
 
-  isConfigured(env: Env): boolean {
-    return Boolean(env.BSKY_HANDLE && env.BSKY_APP_PASSWORD);
+  async isConfigured(ctx): Promise<boolean> {
+    return Boolean(ctx.env.BSKY_HANDLE && ctx.env.BSKY_APP_PASSWORD);
   },
 
   async publish(ctx, doc): Promise<PublishOutcome> {

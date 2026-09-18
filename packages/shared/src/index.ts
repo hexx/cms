@@ -14,11 +14,20 @@ export {
   type SiteConfig,
 } from './config.ts';
 
-export { LIMITS, documentFrontmatterSchema, type DocumentFrontmatter } from './content.ts';
+export {
+  LIMITS,
+  TAG_PATTERN,
+  documentFrontmatterSchema,
+  type DocumentFrontmatter,
+} from './content.ts';
 
 export {
   DOCUMENT_KINDS,
   KIND_DIRECTORY,
+  SLUG_MAX_LENGTH,
+  SLUG_PATTERN,
+  assertSafeSlug,
+  isSafeSlug,
   canonicalUrl,
   documentAtUri,
   documentId,

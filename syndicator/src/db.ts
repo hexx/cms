@@ -62,7 +62,12 @@ export async function updateSnapshotContent(db: D1Database, entry: FeedEntry): P
 }
 
 export async function markRepublished(db: D1Database, path: string): Promise<void> {
-  await db.prepare('UPDATE document_snapshot SET unpublished_at = NULL WHERE path = ?').bind(path).run();
+  // record_hash も落として、次の run でレコードを作り直させる
+  // （削除済みのレコードを指したまま record_hash が残ると再作成されない）
+  await db
+    .prepare('UPDATE document_snapshot SET unpublished_at = NULL, record_hash = NULL WHERE path = ?')
+    .bind(path)
+    .run();
 }
 
 export async function markUnpublished(db: D1Database, path: string, now: string): Promise<void> {
@@ -190,19 +195,22 @@ export async function claimDelivery(db: D1Database, id: number, now: string): Pr
   return (result.meta?.changes ?? 0) === 1;
 }
 
+/** 送信中の行だけを sent にする（途中で削除に切り替わっていたら触らない） */
 export async function markSent(
   db: D1Database,
   id: number,
   outcome: { externalUri: string; externalId?: string },
   now: string,
-): Promise<void> {
-  await db
+): Promise<boolean> {
+  const result = await db
     .prepare(
       `UPDATE delivery SET status = 'sent', external_uri = ?, external_id = ?, error = NULL,
-         next_attempt_at = NULL, updated_at = ? WHERE id = ?`,
+         next_attempt_at = NULL, updated_at = ?
+       WHERE id = ? AND status = 'sending'`,
     )
     .bind(outcome.externalUri, outcome.externalId ?? null, now, id)
     .run();
+  return (result.meta?.changes ?? 0) === 1;
 }
 
 export async function markDeleted(db: D1Database, id: number, now: string): Promise<void> {
@@ -248,7 +256,10 @@ export async function markDead(
     .run();
 }
 
-/** 非公開化: 送信済みなら削除ジョブに、未送信ならスキップにする */
+/**
+ * 非公開化: 送信済みなら削除ジョブに、未送信ならスキップにする。
+ * `sending`（送信中）は触らない。完了時に delivery.ts が非公開を検知して切り替える。
+ */
 export async function scheduleDeletionForPath(db: D1Database, path: string, now: string): Promise<void> {
   await db
     .prepare(
@@ -257,11 +268,12 @@ export async function scheduleDeletionForPath(db: D1Database, path: string, now:
     )
     .bind(now, now, path)
     .run();
-  // 直前で delete に切り替えた行を巻き込まないよう action で絞る
+  // 直前で delete に切り替えた行と、送信中の行は触らない
+  // （送信中の行は完了後に delivery.ts が非公開を検知して削除ジョブに切り替える）
   await db
     .prepare(
       `UPDATE delivery SET status = 'skipped', next_attempt_at = NULL, updated_at = ?
-       WHERE path = ? AND action = 'publish' AND status IN ('pending', 'sending', 'dead')`,
+       WHERE path = ? AND action = 'publish' AND status IN ('pending', 'dead')`,
     )
     .bind(now, path)
     .run();
@@ -309,6 +321,52 @@ export async function setDeliveryAction(
   action: DeliveryAction,
 ): Promise<void> {
   await db.prepare('UPDATE delivery SET action = ? WHERE id = ?').bind(action, id).run();
+}
+
+/**
+ * 送信中のまま残った行を pending に戻す。
+ * Worker が落ちた・タイムアウトした場合に、`sending` のまま永久に再試行されなくなるのを防ぐ。
+ * 外部側が実は成功していた場合は重複投稿になりうるが、永久に止まるよりはましと判断する。
+ */
+export async function recoverStaleSending(
+  db: D1Database,
+  staleBefore: string,
+  now: string,
+): Promise<number> {
+  const result = await db
+    .prepare(
+      `UPDATE delivery SET status = 'pending', next_attempt_at = ?, updated_at = ?,
+         error = '送信中に中断されたため再試行します'
+       WHERE status = 'sending' AND updated_at < ?`,
+    )
+    .bind(now, now, staleBefore)
+    .run();
+  return result.meta?.changes ?? 0;
+}
+
+// ---- 実行ロック ----
+
+/**
+ * 実行ロックを取る。取れたときだけ true。
+ * `staleBefore` より古いロックは奪えるので、Worker が落ちても固まらない。
+ */
+export async function tryAcquireRunLock(
+  db: D1Database,
+  now: string,
+  staleBefore: string,
+  trigger: string,
+): Promise<boolean> {
+  const inserted = await db
+    .prepare('INSERT OR IGNORE INTO run_lock (id, started_at, trigger) VALUES (1, ?, ?)')
+    .bind(now, trigger)
+    .run();
+  if ((inserted.meta?.changes ?? 0) === 1) return true;
+
+  const updated = await db
+    .prepare('UPDATE run_lock SET started_at = ?, trigger = ? WHERE id = 1 AND started_at < ?')
+    .bind(now, trigger, staleBefore)
+    .run();
+  return (updated.meta?.changes ?? 0) === 1;
 }
 
 // ---- backfill / 運用 ----

@@ -9,6 +9,7 @@ import {
   absoluteUrl,
   DEFAULT_OG_IMAGE,
 } from '@hexx/shared';
+import { toJsonLd } from '../lib/json.ts';
 import '../styles/global.css';
 
 interface Props {
@@ -37,6 +38,7 @@ const {
 } = Astro.props;
 
 const pageTitle = title ? `${title} | ${SITE_NAME}` : SITE_NAME;
+const jsonLdText = jsonLd ? toJsonLd(jsonLd) : null;
 const ogImage = absoluteUrl(coverImage ?? DEFAULT_OG_IMAGE);
 const navItems = [
   { href: '/', label: 'ホーム' },
@@ -84,7 +86,7 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
     <meta name="generator" content={Astro.generator} />
     {publishedAt && <meta property="article:published_time" content={publishedAt.toISOString()} />}
 
-    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+    {jsonLdText && <script type="application/ld+json" set:html={jsonLdText} />}
   </head>
   <body>
     <header class="site-header">

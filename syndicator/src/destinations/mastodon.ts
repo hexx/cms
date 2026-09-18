@@ -1,5 +1,4 @@
 import type { RunContext } from '../context.ts';
-import type { Env } from '../env.ts';
 import { mastodonInstanceUrl } from '../env.ts';
 import { composeSnsText } from '../text.ts';
 import type { Destination, PublishOutcome } from './types.ts';
@@ -13,8 +12,8 @@ export const mastodon: Destination = {
   id: 'mastodon',
   label: 'Mastodon',
 
-  isConfigured(env: Env): boolean {
-    return Boolean(env.MASTODON_INSTANCE_URL && env.MASTODON_TOKEN);
+  async isConfigured(ctx): Promise<boolean> {
+    return Boolean(ctx.env.MASTODON_INSTANCE_URL && ctx.env.MASTODON_TOKEN);
   },
 
   async publish(ctx, doc): Promise<PublishOutcome> {

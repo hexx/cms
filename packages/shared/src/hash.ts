@@ -5,6 +5,9 @@ export function canonicalJson(value: unknown): string {
 
 function sortValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortValue);
+  // Date など JSON.stringify が自前で文字列化する値はそのまま渡す
+  // （そうしないと `{}` に潰れて別の日時が同じハッシュになる）
+  if (value instanceof Date) return value;
   if (value && typeof value === 'object') {
     const source = value as Record<string, unknown>;
     const out: Record<string, unknown> = {};

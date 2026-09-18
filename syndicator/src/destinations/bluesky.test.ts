@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunContext } from '../context.ts';
+import type { Env } from '../env.ts';
 import type { DeliveryDocument, SnapshotRow } from '../types.ts';
 import { bluesky } from './bluesky.ts';
 
@@ -86,9 +87,11 @@ describe('bluesky.publish（dry-run）', () => {
 });
 
 describe('bluesky.isConfigured', () => {
-  it('ハンドルと App Password が揃っているときだけ true', () => {
-    expect(bluesky.isConfigured({ BSKY_HANDLE: 'a', BSKY_APP_PASSWORD: 'b' } as never)).toBe(true);
-    expect(bluesky.isConfigured({ BSKY_HANDLE: 'a' } as never)).toBe(false);
-    expect(bluesky.isConfigured({} as never)).toBe(false);
+  const withEnv = (env: Partial<Env>) => ({ env }) as unknown as RunContext;
+
+  it('ハンドルと App Password が揃っているときだけ true', async () => {
+    expect(await bluesky.isConfigured(withEnv({ BSKY_HANDLE: 'a', BSKY_APP_PASSWORD: 'b' }))).toBe(true);
+    expect(await bluesky.isConfigured(withEnv({ BSKY_HANDLE: 'a' }))).toBe(false);
+    expect(await bluesky.isConfigured(withEnv({}))).toBe(false);
   });
 });

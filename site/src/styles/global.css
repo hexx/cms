@@ -37,6 +37,12 @@ html {
   scroll-behavior: smooth;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -59,6 +65,15 @@ a:hover {
   text-decoration-thickness: 2px;
 }
 
+/* キーボード操作でもフォーカスが分かるようにする */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
 img {
   max-width: 100%;
   height: auto;
@@ -72,6 +87,8 @@ code {
   padding: 0.1em 0.35em;
   font-size: 0.9em;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* ハッシュや長い URL でページ全体が横に伸びるのを防ぐ */
+  overflow-wrap: anywhere;
 }
 
 pre {
@@ -104,7 +121,10 @@ hr {
 }
 
 table {
+  /* 幅の広い表でもページ全体を横スクロールさせず、表の中だけスクロールさせる */
+  display: block;
   width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
   font-size: 0.9375rem;
 }
@@ -114,6 +134,7 @@ td {
   border: 1px solid var(--border);
   padding: 0.5rem 0.75rem;
   text-align: left;
+  overflow-wrap: anywhere;
 }
 
 /* layout */

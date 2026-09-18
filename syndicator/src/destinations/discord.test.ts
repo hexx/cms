@@ -117,8 +117,8 @@ describe('discord.remove', () => {
 });
 
 describe('discord.isConfigured', () => {
-  it('Webhook URL があるときだけ true', () => {
-    expect(discord.isConfigured({ DISCORD_WEBHOOK_URL: WEBHOOK } as Env)).toBe(true);
-    expect(discord.isConfigured({} as Env)).toBe(false);
+  it('Webhook URL があるときだけ true', async () => {
+    expect(await discord.isConfigured(context())).toBe(true);
+    expect(await discord.isConfigured(context({ DISCORD_WEBHOOK_URL: undefined }))).toBe(false);
   });
 });

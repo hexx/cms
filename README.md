@@ -64,7 +64,8 @@ draft: false # 任意
 
 決まりごと:
 
-- **slug はファイル名**で、Post / Note をまたいで一意でなければならない（ビルドが落ちる）。ATProto の `rkey` に `/` が使えないため。
+- **slug はファイル名**で、小文字英数字と `. _ ~ -` だけの1セグメント。Post / Note をまたいで一意でなければならない（ビルドが落ちる）。ATProto の `rkey` に `/` が使えないため。
+- `tags` に空白・`/`・`?`・`#`・`.` は使えない（URL のセグメントとハッシュタグに使うため）。
 - **`publishedAt` と slug は公開後に変えない**。URL と standard.site のレコードの同一性が壊れるため。修正は `updatedAt` で表す。
 - Note は本文がそのまま SNS に流れる。140 グラフェムくらいを目安にする。
 - 予約投稿は未対応（書いたら即公開）。
@@ -141,7 +142,7 @@ curl -X POST http://127.0.0.1:8790/syndicate -H 'X-Syndicate-Secret: local-secre
 curl -H 'Authorization: Bearer local-token' http://127.0.0.1:8790/v1/deliveries
 ```
 
-`DRY_RUN=true` では送信もレコード書き込みもせず、計画と送信内容だけを記録する。
+`DRY_RUN=true` では **D1 も外部も一切書き換えない**（フィードを読んで「何が起きるはずか」と各宛先に送る内容をログに出すだけ）。dry-run の後に本番 run を流せば通常どおり処理される。
 
 ### Backfill（後から宛先を足したとき）
 
@@ -157,5 +158,7 @@ curl -X POST https://syndicator.hexx.jp/v1/backfill \
 
 - 管理画面: `https://syndicator.hexx.jp/admin`（Cloudflare Access で保護する。`/admin*` にアプリを張る）
 - 手順書: [docs/runbook.md](./docs/runbook.md)（失敗時の切り分け、再送、ローテーション、緊急停止、D1 の復元）
-- 配信の失敗は指数バックオフ（1分 → 5分 → 30分 → 2時間 → 12時間）で再試行し、5回失敗で `dead` + Discord 通知
+- 配信の失敗は指数バックオフ（1分 → 5分 → 30分 → 2時間 → 12時間）で再試行し、それでも失敗したら `dead` + Discord 通知
+- 実行は D1 のロックで直列化する（Cron とデプロイフックが重なっても二重処理しない）
+- 送信中のまま10分以上経った Delivery は再試行に戻す
 - フィードが空になったときは削除伝播をしない（壊れたデプロイで全記事を消さないための安全装置）

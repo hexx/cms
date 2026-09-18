@@ -16,6 +16,8 @@ export type BackfillResult = {
   created: number;
   reset: number;
   skipped: number;
+  /** dry-run なら予定を数えただけで D1 は触っていない */
+  dryRun: boolean;
 };
 
 /**
@@ -45,12 +47,16 @@ export async function runBackfill(
     created: 0,
     reset: 0,
     skipped: 0,
+    dryRun: ctx.dryRun,
   };
 
   for (const snapshot of targets) {
     const existing = await getDeliveryFor(ctx.env.DB, snapshot.path, options.destination);
     if (!existing) {
-      await createDelivery(ctx.env.DB, snapshot.path, options.destination, now);
+      // dry-run は数えるだけ。D1 には書かない
+      if (!ctx.dryRun) {
+        await createDelivery(ctx.env.DB, snapshot.path, options.destination, now);
+      }
       result.created += 1;
       continue;
     }
@@ -64,7 +70,9 @@ export async function runBackfill(
       result.skipped += 1;
       continue;
     }
-    await resetDelivery(ctx.env.DB, snapshot.path, options.destination, now);
+    if (!ctx.dryRun) {
+      await resetDelivery(ctx.env.DB, snapshot.path, options.destination, now);
+    }
     result.reset += 1;
   }
 

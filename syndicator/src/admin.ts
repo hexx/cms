@@ -1,3 +1,4 @@
+import { createContext } from './context.ts';
 import { listDeliveries, listRunLogs } from './db.ts';
 import { DESTINATIONS } from './destinations/index.ts';
 import { ALL_DESTINATIONS, enabledDestinations, type Env } from './env.ts';
@@ -8,6 +9,13 @@ function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/** http(s) 以外はリンクにしない（javascript: などを踏ませない） */
+function renderExternalLink(uri: string | null): string {
+  if (!uri) return '—';
+  const label = `${escapeHtml(uri.slice(0, 48))}…`;
+  return /^https?:\/\//i.test(uri) ? `<a href="${escapeHtml(uri)}" rel="noopener">${label}</a>` : label;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -37,11 +45,7 @@ export async function renderAdmin(env: Env): Promise<string> {
       <td>${escapeHtml(row.action)}</td>
       <td class="s-${escapeHtml(row.status)}">${escapeHtml(STATUS_LABELS[row.status] ?? row.status)}</td>
       <td>${row.attempt}</td>
-      <td>${
-        row.external_uri
-          ? `<a href="${escapeHtml(row.external_uri)}">${escapeHtml(row.external_uri.slice(0, 48))}…</a>`
-          : '—'
-      }</td>
+      <td>${renderExternalLink(row.external_uri)}</td>
       <td class="err">${row.error ? escapeHtml(row.error.slice(0, 120)) : ''}</td>
       <td>${escapeHtml(row.updated_at.replace('T', ' ').slice(0, 19))}</td>
       <td>
@@ -54,9 +58,16 @@ export async function renderAdmin(env: Env): Promise<string> {
     .join('\n');
 
   const enabled = new Set(enabledDestinations(env));
-  const destinationRows = ALL_DESTINATIONS.map((id) => {
+  const context = createContext(env, 'admin');
+  const configuredFlags = await Promise.all(
+    ALL_DESTINATIONS.map(async (id) => {
+      const destination = DESTINATIONS[id];
+      return destination ? await destination.isConfigured(context) : false;
+    }),
+  );
+  const destinationRows = ALL_DESTINATIONS.map((id, index) => {
     const destination = DESTINATIONS[id];
-    const configured = destination ? destination.isConfigured(env) : false;
+    const configured = configuredFlags[index] ?? false;
     const status = !destination
       ? '<span class="err">未実装</span>'
       : configured

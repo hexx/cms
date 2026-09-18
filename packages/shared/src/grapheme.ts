@@ -18,7 +18,8 @@ export function graphemeLength(value: string): number {
 /** グラフェム単位で切り詰める。上限以内ならそのまま返す */
 export function truncateGraphemes(value: string, max: number): string {
   if (graphemeLength(value) <= max) return value;
-  if (!segmenter) return value.slice(0, max);
+  // Segmenter が無い環境でもサロゲートペアを割らないようコードポイント単位で切る
+  if (!segmenter) return [...value].slice(0, max).join('');
   let result = '';
   let count = 0;
   for (const { segment } of segmenter.segment(value)) {

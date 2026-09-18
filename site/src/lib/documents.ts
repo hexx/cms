@@ -89,10 +89,16 @@ export async function getAllDocuments(): Promise<Document[]> {
   return documents.sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime());
 }
 
-/** 公開済みの Document（公開日の降順） */
+/**
+ * 公開済みの Document（公開日の降順）。
+ * 1回のビルドで全ページから呼ばれるため、Markdown の解析とハッシュ計算は
+ * 最初の1回だけにして結果を使い回す。
+ */
+let publishedCache: Promise<Document[]> | null = null;
+
 export async function getPublishedDocuments(): Promise<Document[]> {
-  const documents = await getAllDocuments();
-  return documents.filter((doc) => !doc.draft);
+  publishedCache ??= getAllDocuments().then((documents) => documents.filter((doc) => !doc.draft));
+  return publishedCache;
 }
 
 export function filterByKind(documents: Document[], kind: DocumentKind): Document[] {

@@ -8,7 +8,7 @@
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply hexx-syndicator --local",
     "db:migrate:remote": "wrangler d1 migrations apply hexx-syndicator --remote",
-    "bootstrap": "node scripts/bootstrap-publication.mjs",
+    "bootstrap": "node scripts/bootstrap.mjs",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

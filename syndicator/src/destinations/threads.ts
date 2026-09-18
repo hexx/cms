@@ -17,8 +17,10 @@ export const threads: Destination = {
   id: 'threads',
   label: 'Threads',
 
-  isConfigured(env): boolean {
-    return threadsConfigured(env);
+  async isConfigured(ctx): Promise<boolean> {
+    if (threadsConfigured(ctx.env)) return true;
+    // トークンは D1 に置く（60日で切れるため自動更新する）ので、そちらも見る
+    return (await getThreadsCredential(ctx)) !== null;
   },
 
   async publish(ctx, doc): Promise<PublishOutcome> {

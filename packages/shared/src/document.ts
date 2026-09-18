@@ -25,8 +25,33 @@ export function jstParts(date: Date): { year: string; month: string; day: string
   return { year: pick('year'), month: pick('month'), day: pick('day') };
 }
 
+/**
+ * slug に許す形。ATProto の rkey（`[A-Za-z0-9._~:-]`）と URL の1セグメントの
+ * 両方で安全でなければならない。ファイル名がそのまま slug になる。
+ */
+export const SLUG_PATTERN = /^[a-z0-9][a-z0-9._~-]*$/;
+export const SLUG_MAX_LENGTH = 100;
+
+export function isSafeSlug(slug: string): boolean {
+  return (
+    slug.length > 0 &&
+    slug.length <= SLUG_MAX_LENGTH &&
+    SLUG_PATTERN.test(slug) &&
+    !slug.includes('..')
+  );
+}
+
+export function assertSafeSlug(slug: string, context: string): void {
+  if (!isSafeSlug(slug)) {
+    throw new Error(
+      `${context}: slug は小文字英数字と . _ ~ - だけの1セグメントにしてください（受け取った値: ${JSON.stringify(slug)}）`,
+    );
+  }
+}
+
 /** Canonical URL のパス部分（例: /posts/2026/09/hello-world） */
 export function documentPath(kind: DocumentKind, publishedAt: Date, slug: string): string {
+  assertSafeSlug(slug, 'documentPath');
   const { year, month } = jstParts(publishedAt);
   return `/${KIND_DIRECTORY[kind]}/${year}/${month}/${slug}`;
 }
@@ -46,8 +71,12 @@ export function documentId(kind: DocumentKind, slug: string): string {
  * publication の AT-URI（at://<did>/site.standard.publication/<rkey>）の authority を流用する。
  */
 export function documentAtUri(publicationAtUri: string, slug: string): string {
-  const authority = publicationAtUri.replace(/^at:\/\//, '').split('/')[0];
-  return `at://${authority}/site.standard.document/${slug}`;
+  const match = /^at:\/\/([^/]+)\/([^/]+)\/([^/]+)$/.exec(publicationAtUri);
+  if (!match) {
+    throw new Error(`publication の AT-URI の形が不正です: ${JSON.stringify(publicationAtUri)}`);
+  }
+  assertSafeSlug(slug, 'documentAtUri');
+  return `at://${match[1]}/site.standard.document/${slug}`;
 }
 
 /** 公開日時の表示用フォーマット（JST） */

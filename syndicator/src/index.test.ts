@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { insertRunLog } from './db.ts';
+import { tryAcquireRunLock } from './db.ts';
 import type { Env } from './env.ts';
 import { app } from './index.ts';
 import { createTestDb } from './testing/d1.ts';
@@ -34,13 +34,11 @@ describe('POST /syndicate', () => {
     expect(response.status).toBe(401);
   });
 
-  it('直前の run があるときは 202 で素通りさせる（重複実行の防止）', async () => {
+  it('別の run が実行中なら 202 で素通りさせる（重複実行の防止）', async () => {
     const env = makeEnv();
-    await insertRunLog(env.DB, {
-      startedAt: new Date().toISOString(),
-      trigger: 'cron',
-      summary: '{}',
-    });
+    // 実行ロックを先に取っておく
+    const now = new Date().toISOString();
+    expect(await tryAcquireRunLock(env.DB, now, new Date(0).toISOString(), 'cron')).toBe(true);
 
     const response = await app.request(
       '/syndicate',
@@ -48,8 +46,7 @@ describe('POST /syndicate', () => {
       env,
     );
     expect(response.status).toBe(202);
-    const body = (await response.json()) as { skipped?: string };
-    expect(body.skipped).toBe('recent-run');
+    expect(await response.json()).toEqual({ skipped: 'locked' });
   });
 });
 
@@ -111,6 +108,7 @@ describe('POST /v1/backfill', () => {
       created: 0,
       reset: 0,
       skipped: 0,
+      dryRun: false,
     });
   });
 });

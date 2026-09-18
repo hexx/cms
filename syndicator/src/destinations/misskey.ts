@@ -1,5 +1,4 @@
 import type { RunContext } from '../context.ts';
-import type { Env } from '../env.ts';
 import { misskeyInstanceUrl } from '../env.ts';
 import { composeSnsText } from '../text.ts';
 import type { Destination, PublishOutcome } from './types.ts';
@@ -14,14 +13,17 @@ export const misskey: Destination = {
   id: 'misskey',
   label: 'Misskey',
 
-  isConfigured(env: Env): boolean {
+  async isConfigured(ctx): Promise<boolean> {
     // インスタンス URL には既定値（misskey.io）があるのでトークンだけで判定する
-    return Boolean(env.MISSKEY_TOKEN);
+    return Boolean(ctx.env.MISSKEY_TOKEN);
   },
 
   async publish(ctx, doc): Promise<PublishOutcome> {
     const base = misskeyInstanceUrl(ctx.env);
     const body = {
+      // Misskey は伝統的にトークンを本文の i で受け取る。
+      // 新しい実装は Authorization ヘッダーも見るので、両方送ってどの版でも通るようにする。
+      i: ctx.env.MISSKEY_TOKEN,
       visibility: 'public' as const,
       text: composeSnsText(doc, { limit: MAX_CHARS, hashtags: MAX_HASHTAGS }),
     };
@@ -75,7 +77,7 @@ export const misskey: Destination = {
         Authorization: `Bearer ${ctx.env.MISSKEY_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ noteId: id }),
+      body: JSON.stringify({ i: ctx.env.MISSKEY_TOKEN, noteId: id }),
     });
     if (!response.ok) {
       throw new Error(`Misskey のノートを削除できません: ${response.status}`);

@@ -16,6 +16,7 @@ interface Props {
 }
 
 const { doc } = Astro.props;
+// posts と notes は同じスキーマなので、render の型を満たすために代表させている
 const { Content } = await render(doc.entry as CollectionEntry<'posts'>);
 const recordUri = documentAtUri(PUBLICATION_AT_URI, doc.slug);
 const publishedAt = doc.publishedAt;

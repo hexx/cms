@@ -72,17 +72,24 @@ const did = PUBLICATION_AT_URI.replace(/^at:\/\//, '').split('/')[0] ?? '';
     button.addEventListener('click', async () => {
       const url = button.dataset.copyUrl;
       if (!url) return;
-      try {
-        await navigator.clipboard.writeText(url);
-      } catch {
-        return;
-      }
       const status = button.parentElement?.querySelector<HTMLElement>('[data-copy-status]');
-      if (!status) return;
-      status.hidden = false;
-      setTimeout(() => {
-        status.hidden = true;
-      }, 2000);
+      const show = (message: string) => {
+        if (!status) return;
+        status.textContent = message;
+        status.hidden = false;
+        setTimeout(() => {
+          status.hidden = true;
+        }, 2000);
+      };
+
+      try {
+        if (!navigator.clipboard) throw new Error('clipboard unavailable');
+        await navigator.clipboard.writeText(url);
+        show('コピーしました');
+      } catch {
+        // 非 HTTPS や権限拒否でも操作が無反応に見えないようにする
+        show('コピーできませんでした');
+      }
     });
   }
 </script>

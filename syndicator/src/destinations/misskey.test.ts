@@ -43,6 +43,8 @@ describe('misskey.publish', () => {
     expect(outcome.request).toEqual({
       url: 'https://misskey.example/api/notes/create',
       body: {
+        // 古い Misskey でも通るよう本文の i にトークンを入れる
+        i: 'token',
         visibility: 'public',
         text: 'はじめての投稿\nhttps://hexx.jp/posts/2026/09/hello-world\n#atproto',
       },
@@ -103,7 +105,7 @@ describe('misskey.remove', () => {
     await misskey.remove(context({}, false), { external_id: 'abc123' } as DeliveryRow);
     const [url, init] = fetchStub.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('https://misskey.example/api/notes/delete');
-    expect(JSON.parse(init.body as string)).toEqual({ noteId: 'abc123' });
+    expect(JSON.parse(init.body as string)).toEqual({ i: 'token', noteId: 'abc123' });
   });
 
   it('NO_SUCH_NOTE は成功として扱う', async () => {
@@ -134,8 +136,8 @@ describe('misskey.remove', () => {
 });
 
 describe('misskey.isConfigured', () => {
-  it('トークンが無ければ false', () => {
-    expect(misskey.isConfigured({ MISSKEY_TOKEN: 't' } as Env)).toBe(true);
-    expect(misskey.isConfigured({ MISSKEY_INSTANCE_URL: 'https://x' } as Env)).toBe(false);
+  it('トークンが無ければ false（インスタンス URL は既定値がある）', async () => {
+    expect(await misskey.isConfigured(context())).toBe(true);
+    expect(await misskey.isConfigured(context({ MISSKEY_TOKEN: undefined }))).toBe(false);
   });
 });

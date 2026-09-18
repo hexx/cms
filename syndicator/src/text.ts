@@ -37,6 +37,8 @@ export type TextOptions = {
 export function composeLinkedPost(doc: DeliveryDocument, options: TextOptions): string {
   const suffix = options.hashtags ? hashtagSuffix(doc.tags, options.hashtags) : '';
   const url = doc.url;
+  // タイトルを入れる余地が無いなら URL だけ返す（上限を守る方を優先する）
+  if (options.limit <= graphemeLength(url)) return url;
   const withTags = [url, suffix].filter(Boolean).join('\n');
   const tail = options.limit - graphemeLength(withTags) - 1 >= 1 ? withTags : url;
   const budget = Math.max(options.limit - graphemeLength(tail) - 1, 1);

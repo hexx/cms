@@ -115,11 +115,13 @@ describe('mastodon.remove', () => {
 });
 
 describe('mastodon.isConfigured', () => {
-  it('インスタンス URL とトークンが揃っているときだけ true', () => {
-    expect(mastodon.isConfigured({ MASTODON_INSTANCE_URL: 'https://x', MASTODON_TOKEN: 't' } as Env)).toBe(
-      true,
-    );
-    expect(mastodon.isConfigured({ MASTODON_INSTANCE_URL: 'https://x' } as Env)).toBe(false);
-    expect(mastodon.isConfigured({} as Env)).toBe(false);
+  it('インスタンス URL とトークンが揃っているときだけ true', async () => {
+    expect(await mastodon.isConfigured(context())).toBe(true);
+    expect(await mastodon.isConfigured(context({ MASTODON_TOKEN: undefined }))).toBe(false);
+    expect(
+      await mastodon.isConfigured(
+        context({ MASTODON_INSTANCE_URL: undefined, MASTODON_TOKEN: undefined }),
+      ),
+    ).toBe(false);
   });
 });

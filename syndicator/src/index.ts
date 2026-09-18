@@ -1,11 +1,11 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { renderAdmin } from './admin.ts';
 import { putPublicationRecord } from './atproto.ts';
 import { runBackfill } from './backfill.ts';
 import { createContext } from './context.ts';
 import { setThreadsCredential } from './threads.ts';
-import { getDelivery, lastRunStartedAt, listDeliveries, listRunLogs, requeueDelivery } from './db.ts';
-import { processOneDelivery } from './delivery.ts';
+import { getDelivery, listDeliveries, listRunLogs, requeueDelivery } from './db.ts';
+import { processDelivery } from './delivery.ts';
 import {
   enabledDestinations,
   isDryRun,
@@ -36,9 +36,6 @@ app.get('/health', (c) =>
   }),
 );
 
-/** 連続実行を防ぐ間隔。デプロイフックと Cron が重なっても片方は素通りさせる */
-const MIN_RUN_INTERVAL_MS = 30_000;
-
 /** デプロイフック / 外部トリガー。共有シークレットで保護する */
 app.post('/syndicate', async (c) => {
   const secret = c.env.SYNDICATE_SECRET;
@@ -49,14 +46,10 @@ app.post('/syndicate', async (c) => {
 
   const context = createContext(c.env, c.req.header('x-syndicate-trigger') ?? 'deploy-hook');
 
-  const last = await lastRunStartedAt(c.env.DB);
-  if (last && context.now.getTime() - new Date(last).getTime() < MIN_RUN_INTERVAL_MS) {
-    return c.json({ skipped: 'recent-run', lastRunStartedAt: last }, 202);
-  }
-
   try {
-    const summary = await runAndRecord(context);
-    return c.json(summary);
+    // 実行ロックは runAndRecord の中で取る（Cron と重なったら片方が locked で戻る）
+    const result = await runAndRecord(context);
+    return c.json(result, 'skipped' in result ? 202 : 200);
   } catch (error) {
     return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
   }
@@ -90,12 +83,9 @@ app.post('/v1/deliveries/:id/retry', async (c) => {
   if (!row) return c.json({ error: 'not found' }, 404);
   const context = createContext(c.env, 'manual-retry');
   await requeueDelivery(c.env.DB, id, context.now.toISOString());
-  try {
-    await processOneDelivery(context, { ...row, status: 'pending', attempt: 0 });
-  } catch (error) {
-    return c.json({ error: error instanceof Error ? error.message : String(error) }, 500);
-  }
-  return c.json({ delivery: await getDelivery(c.env.DB, id) });
+  // 期日処理と同じ経路を通す（未公開・資格情報なし・失敗時の再試行まで同じ扱い）
+  const outcome = await processDelivery(context, { ...row, status: 'pending', attempt: 0 });
+  return c.json({ outcome, delivery: await getDelivery(c.env.DB, id) });
 });
 
 app.get('/v1/runs', async (c) => c.json({ runs: await listRunLogs(c.env.DB, 50) }));
@@ -136,6 +126,14 @@ app.post('/v1/credentials/threads', async (c) => {
   const userId = body.userId ?? c.env.THREADS_USER_ID ?? '';
   if (!userId) return c.json({ error: 'userId は必須です（THREADS_USER_ID でも可）' }, 400);
 
+  // 不正な期限（0・負・NaN・過大）を保存しない
+  const MAX_EXPIRES_IN_SECONDS = 90 * 24 * 60 * 60;
+  if (
+    body.expiresIn !== undefined &&
+    (!Number.isFinite(body.expiresIn) || body.expiresIn <= 0 || body.expiresIn > MAX_EXPIRES_IN_SECONDS)
+  ) {
+    return c.json({ error: 'expiresIn は 1〜7776000 秒の範囲で指定してください' }, 400);
+  }
   const expiresAt =
     typeof body.expiresIn === 'number'
       ? new Date(context.now.getTime() + body.expiresIn * 1000).toISOString()
@@ -158,19 +156,40 @@ app.post('/v1/publication', async (c) => {
  * 管理画面。Cloudflare Access のアプリケーションを `/admin*` に張る前提で、
  * ここでは追加の認証をしない（外部からは Access が門番になる）。
  */
+/**
+ * Cloudflare Access が付与するヘッダー。署名検証まではしないが、
+ * Access を経由していないリクエスト（＝設定漏れ）を素通しさせないための多層防御。
+ * Bearer トークンを持つスクリプトは素通しできる。
+ */
+function isAdminRequest(c: Context<{ Bindings: Env }>): boolean {
+  if (c.env.ADMIN_ALLOW_DIRECT === 'true') return true;
+  if (c.req.header('cf-access-jwt-assertion')) return true;
+  const token = c.env.ADMIN_TOKEN;
+  const provided = (c.req.header('authorization') ?? '').replace(/^Bearer /, '');
+  return Boolean(token && provided && timingSafeEqual(token, provided));
+}
+
 app.get('/admin', async (c) => {
+  if (!isAdminRequest(c)) {
+    return c.text(
+      'この画面は Cloudflare Access で保護してください（syndicator.hexx.jp/admin* にアプリを作成）。\n' +
+        '直接叩く場合は Authorization: Bearer <ADMIN_TOKEN> を付けてください。',
+      403,
+    );
+  }
   const html = await renderAdmin(c.env);
   return c.html(html);
 });
 
 app.post('/admin/deliveries/:id/retry', async (c) => {
+  if (!isAdminRequest(c)) return c.text('forbidden', 403);
   const id = Number(c.req.param('id'));
   const row = await getDelivery(c.env.DB, id);
   if (row) {
     const context = createContext(c.env, 'admin-retry');
     await requeueDelivery(c.env.DB, id, context.now.toISOString());
     try {
-      await processOneDelivery(context, { ...row, status: 'pending', attempt: 0 });
+      await processDelivery(context, { ...row, status: 'pending', attempt: 0 });
     } catch (error) {
       context.log('error', '手動再送に失敗しました', { id, error: String(error) });
     }

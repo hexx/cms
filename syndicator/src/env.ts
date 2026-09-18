@@ -7,6 +7,8 @@ export type Env = {
   SYNDICATE_SECRET?: string;
   /** 読み取り API / 管理操作用の Bearer トークン */
   ADMIN_TOKEN?: string;
+  /** 'true' にすると /admin を Access 無しでも開ける（ローカル検証用） */
+  ADMIN_ALLOW_DIRECT?: string;
 
   BSKY_HANDLE?: string;
   BSKY_APP_PASSWORD?: string;
