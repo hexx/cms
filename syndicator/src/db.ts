@@ -311,6 +311,36 @@ export async function setDeliveryAction(
   await db.prepare('UPDATE delivery SET action = ? WHERE id = ?').bind(action, id).run();
 }
 
+// ---- credential（自動更新が必要な資格情報） ----
+
+export type CredentialRow = {
+  name: string;
+  value: string;
+  updated_at: string;
+  expires_at: string | null;
+};
+
+export async function getCredential(db: D1Database, name: string): Promise<CredentialRow | null> {
+  return db.prepare('SELECT * FROM credential WHERE name = ?').bind(name).first<CredentialRow>();
+}
+
+export async function putCredential(
+  db: D1Database,
+  name: string,
+  value: string,
+  now: string,
+  expiresAt: string | null,
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO credential (name, value, updated_at, expires_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at,
+         expires_at = excluded.expires_at`,
+    )
+    .bind(name, value, now, expiresAt)
+    .run();
+}
+
 // ---- run log ----
 
 export async function insertRunLog(

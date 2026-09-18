@@ -485,14 +485,51 @@ describe('runSyndication: 再試行', () => {
     const db = createTestDb();
     const calls = installFetch(buildFeed([feedItem('/posts/2026/09/hello-world')]));
 
+    const removed = DESTINATIONS.threads;
+    delete DESTINATIONS.threads;
+    try {
+      const summary = await runSyndication(
+        makeContext({ db, dryRun: true, destinations: 'threads', notifications: true }),
+      );
+      expect(summary.deliveries.dead).toBe(1);
+      expect(calls.some((url) => url.startsWith(DISCORD))).toBe(true);
+      const row = await db
+        .prepare('SELECT status, error FROM delivery')
+        .first<{ status: string; error: string }>();
+      expect(row?.status).toBe('dead');
+      expect(row?.error).toMatch(/未実装/);
+    } finally {
+      DESTINATIONS.threads = removed;
+    }
+  });
+
+  it('全 Destination を有効にしても、宛先ごとに独立して処理される', async () => {
+    const db = createTestDb();
+    const fake = createFakeAgent();
+    // Mastodon / Misskey / Nostr / Threads / Discord は資格情報が無いので dead、Bluesky だけ届く
+    installFetch(buildFeed([feedItem('/posts/2026/09/hello-world')]));
+
     const summary = await runSyndication(
-      makeContext({ db, dryRun: true, destinations: 'threads', notifications: true }),
+      makeContext({
+        db,
+        fake,
+        destinations: 'bluesky,mastodon,misskey,nostr,threads,discord',
+      }),
     );
 
-    expect(summary.deliveries.dead).toBe(1);
-    expect(calls.some((url) => url.startsWith(DISCORD))).toBe(true);
-    const row = await db.prepare('SELECT status, error FROM delivery').first<{ status: string; error: string }>();
-    expect(row?.status).toBe('dead');
-    expect(row?.error).toMatch(/未実装/);
+    expect(summary.deliveries.sent).toBe(1);
+    expect(summary.deliveries.dead).toBe(5);
+
+    const rows = await db
+      .prepare('SELECT destination, status FROM delivery ORDER BY destination')
+      .all<{ destination: string; status: string }>();
+    expect(Object.fromEntries(rows.results.map((row) => [row.destination, row.status]))).toEqual({
+      bluesky: 'sent',
+      discord: 'dead',
+      mastodon: 'dead',
+      misskey: 'dead',
+      nostr: 'dead',
+      threads: 'dead',
+    });
   });
 });

@@ -12,8 +12,10 @@
   },
   "vars": {
     // Misskey のインスタンス（利用者ごとに違うのでここで指定する）
-    "MISSKEY_INSTANCE_URL": "https://misskey.io"
+    "MISSKEY_INSTANCE_URL": "https://misskey.io",
     // NOSTR_RELAYS を省略すると sns-client と同じ固定リレーセットを使う
+    // Threads のユーザー ID。アクセストークンは D1 の credential に保存する（60日で切れるため）
+    "THREADS_USER_ID": ""
   },
   "d1_databases": [
     {
@@ -27,10 +29,11 @@
   //   SYNDICATE_SECRET  デプロイフック用の共有シークレット
   //   ADMIN_TOKEN       読み取り API / 管理操作用の Bearer トークン
   //   BSKY_HANDLE / BSKY_APP_PASSWORD
-  //   MASTODON_INSTANCE_URL（vars でも可）/ MASTODON_TOKEN
+  //   MASTODON_INSTANCE_URL / MASTODON_TOKEN
   //   MISSKEY_TOKEN
   //   NOSTR_NSEC
-  //   DISCORD_WEBHOOK_URL（任意）
+  //   DISCORD_WEBHOOK_URL（配信先チャンネル）
+  //   DISCORD_NOTIFY_WEBHOOK_URL（任意。運用通知を別チャンネルにしたいとき）
   // ローカル検証は .dev.vars（git 管理外）で上書きする:
   //   FEED_URL=http://127.0.0.1:8789/feed-all.json
   //   DRY_RUN=true

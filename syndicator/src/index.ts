@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { renderAdmin } from './admin.ts';
+import { putPublicationRecord } from './atproto.ts';
 import { createContext } from './context.ts';
+import { setThreadsCredential } from './threads.ts';
 import { getDelivery, listDeliveries, listRunLogs, requeueDelivery } from './db.ts';
 import { processOneDelivery } from './delivery.ts';
 import {
@@ -88,8 +90,26 @@ app.post('/v1/deliveries/:id/retry', async (c) => {
 
 app.get('/v1/runs', async (c) => c.json({ runs: await listRunLogs(c.env.DB, 50) }));
 
+/** Threads の長期トークンを登録する（初回は Meta 側で発行した値を渡す） */
+app.post('/v1/credentials/threads', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { userId?: string; accessToken?: string; expiresIn?: number }
+    | null;
+  if (!body?.accessToken) return c.json({ error: 'accessToken は必須です' }, 400);
+
+  const context = createContext(c.env, 'credential-set');
+  const userId = body.userId ?? c.env.THREADS_USER_ID ?? '';
+  if (!userId) return c.json({ error: 'userId は必須です（THREADS_USER_ID でも可）' }, 400);
+
+  const expiresAt =
+    typeof body.expiresIn === 'number'
+      ? new Date(context.now.getTime() + body.expiresIn * 1000).toISOString()
+      : null;
+  await setThreadsCredential(context, { userId, accessToken: body.accessToken }, expiresAt);
+  return c.json({ userId, expiresAt });
+});
+
 app.post('/v1/publication', async (c) => {
-  const { putPublicationRecord } = await import('./atproto.ts');
   const context = createContext(c.env, 'publication-sync');
   try {
     const result = await putPublicationRecord(context);

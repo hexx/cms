@@ -19,6 +19,7 @@ import { processDueDeliveries, type DeliveryStats } from './delivery.ts';
 import { planSync } from './diff.ts';
 import { enabledDestinations, isPlaceholderAtUri } from './env.ts';
 import { fetchFeed } from './feed.ts';
+import { refreshThreadsTokenIfNeeded, type RefreshOutcome } from './threads.ts';
 import { notify } from './notify.ts';
 
 export type RunSummary = {
@@ -32,6 +33,7 @@ export type RunSummary = {
   skippedUnpublish: number;
   records: number;
   publicationSynced: boolean;
+  threadsToken: RefreshOutcome;
   deliveries: DeliveryStats;
   durationMs: number;
 };
@@ -68,6 +70,7 @@ export async function runSyndication(ctx: RunContext): Promise<RunSummary> {
     skippedUnpublish: 0,
     records: 0,
     publicationSynced: false,
+    threadsToken: 'skipped',
     deliveries: emptyDeliveryStats(),
     durationMs: 0,
   };
@@ -129,7 +132,12 @@ export async function runSyndication(ctx: RunContext): Promise<RunSummary> {
     }
   }
 
-  // 3. 配信
+  // 3. 期限切れが近い資格情報の更新（Threads は 60 日で切れるため run ごとに見る）
+  if (destinations.includes('threads')) {
+    summary.threadsToken = await refreshThreadsTokenIfNeeded(ctx);
+  }
+
+  // 4. 配信
   summary.deliveries = await processDueDeliveries(ctx, 20);
 
   summary.durationMs = Date.now() - startedAt;

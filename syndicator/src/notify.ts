@@ -2,7 +2,8 @@ import type { RunContext } from './context.ts';
 
 /** Discord へ通知する。Webhook が未設定・失敗しても本処理は止めない */
 export async function notify(ctx: RunContext, content: string): Promise<void> {
-  const url = ctx.env.DISCORD_WEBHOOK_URL;
+  // 配信先チャンネルとログチャンネルを分けたい場合は DISCORD_NOTIFY_WEBHOOK_URL を設定する
+  const url = ctx.env.DISCORD_NOTIFY_WEBHOOK_URL ?? ctx.env.DISCORD_WEBHOOK_URL;
   if (!url) {
     ctx.log('info', '通知（Discord 未設定）', { content });
     return;

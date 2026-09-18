@@ -19,7 +19,7 @@ syndicator/        Cloudflare Worker。ATProto レコードの書き込みと SN
 | P1 | サイト基盤（Astro、Post/Note、フィード、OGP、standard.site の検証ファイルと link タグ） | ✅ |
 | P2 | Syndicator（D1、差分検出、publication/document レコード、Bluesky 配信、Cron、`/admin`、dry-run） | ✅ |
 | P3 | Mastodon / Misskey / Nostr | ✅ |
-| P4 | Threads / Discord 通知 / X 手動ボタン | 未着手 |
+| P4 | Threads / Discord 配信 / X 手動ボタン | ✅ |
 | P5 | 削除伝播の全宛先化、Backfill、Runbook | 未着手 |
 
 ## セットアップ
@@ -98,11 +98,27 @@ watch paths（`site/**` と `syndicator/**`）で分離する。blog のデプ�
 | `MASTODON_TOKEN` | Mastodon への投稿（インスタンス URL は `wrangler.jsonc` の vars でも可） |
 | `MISSKEY_TOKEN` | Misskey への投稿（インスタンスは vars の `MISSKEY_INSTANCE_URL`、既定 `https://misskey.io`） |
 | `NOSTR_NSEC` | Nostr への投稿（`nsec1...` か 64 桁 hex）。**Syndicator にしか置かない** |
-| `DISCORD_WEBHOOK_URL` | 任意。配信結果の通知先 |
+| `DISCORD_WEBHOOK_URL` | Discord への配信（embed 1枚）。運用通知もここに来る |
+| `DISCORD_NOTIFY_WEBHOOK_URL` | 任意。運用通知だけ別チャンネルに分けたいとき |
 
-`ENABLED_DESTINATIONS`（カンマ区切り、既定 `bluesky`）で有効な宛先を切り替える。指定できるのは `bluesky,mastodon,misskey,nostr,threads,discord` で、実装されていない宛先（現状 `threads` / `discord`）を有効にすると、その Delivery は `dead` になって Discord に通知される。
+`THREADS_USER_ID` は vars（`wrangler.jsonc`）に置く。アクセストークンは 60 日で切れるため D1 に保存し、20時間以上経ったら run ごとに自動更新する。
+
+`ENABLED_DESTINATIONS`（カンマ区切り、既定 `bluesky`）で有効な宛先を切り替える。`bluesky,mastodon,misskey,nostr,threads,discord` の6つ。資格情報が無い宛先を有効にすると、その Delivery は `dead` になって Discord に通知される（有効化したまま忘れないように）。
 
 `NOSTR_RELAYS` を省略すると sns-client と同じ固定リレーセット（`yabu.me` / `relay.damus.io` / `nos.lol` / `relay.nostr.band` / `relay.primal.net` / `nostr.hiroba.media`）を使う。1つでもリレーが受理すれば配信成功とする。
+
+### Threads のトークン登録（初回のみ）
+
+Meta の開発者アプリで `threads_basic` / `threads_content_publish` を有効にし、Threads API のセットアップで長期トークンを発行してから:
+
+```bash
+curl -X POST https://syndicator.hexx.jp/v1/credentials/threads \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"<Threads のユーザー ID>","accessToken":"<長期トークン>"}'
+```
+
+`THREADS_USER_ID` を `wrangler.jsonc` の vars に入れておけば `userId` は省略できる。以後の更新は Cron が行う（60日で切れるため）。
 
 ### ブートストラップ（初回のみ）
 

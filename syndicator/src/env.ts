@@ -22,7 +22,13 @@ export type Env = {
   /** カンマ区切りのリレー URL */
   NOSTR_RELAYS?: string;
 
+  /** 配信先としての Discord チャンネル */
   DISCORD_WEBHOOK_URL?: string;
+  /** 運用通知の Discord チャンネル。未設定なら DISCORD_WEBHOOK_URL を使う */
+  DISCORD_NOTIFY_WEBHOOK_URL?: string;
+
+  /** Threads のユーザー ID（トークンは D1 の credential に保存する） */
+  THREADS_USER_ID?: string;
 
   /** カンマ区切りの有効 Destination。未設定なら 'bluesky' */
   ENABLED_DESTINATIONS?: string;

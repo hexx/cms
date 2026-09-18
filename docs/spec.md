@@ -202,8 +202,8 @@ lang: ja                      # 任意, 既定 ja
 | **Mastodon** | REST `POST /api/v1/statuses` | `MASTODON_INSTANCE_URL`, `MASTODON_TOKEN` | `DELETE /api/v1/statuses/:id`（404/410 は成功扱い） |
 | **Misskey** | REST `POST /api/notes/create` | `MISSKEY_INSTANCE_URL`（既定 misskey.io）, `MISSKEY_TOKEN` | `POST /api/notes/delete`（`NO_SUCH_NOTE` は成功扱い） |
 | **Nostr** | relay へ kind:1 を publish | `NOSTR_NSEC`, `NOSTR_RELAYS` | kind:5（NIP-09） |
-| **Threads** | Graph API の2段階 publish | `THREADS_USER_ID` + 長期トークン（**D1 の `credential` に保存**し Cron で更新） | `DELETE /v1.0/:id` |
-| **Discord** | Incoming Webhook | `DISCORD_WEBHOOK_URL` | `DELETE /webhooks/.../messages/:id` |
+| **Threads** | Graph API の2段階 publish（コンテナ作成 → publish。本文 500 字） | `THREADS_USER_ID`（vars）+ 長期トークン（**D1 の `credential` に保存**し、20時間以上経ったら run ごとに更新） | `DELETE /v1.0/:id`（404 は成功扱い） |
+| **Discord** | Incoming Webhook（`?wait=true` でメッセージ id を取る。embed 1枚） | `DISCORD_WEBHOOK_URL` | `DELETE /webhooks/.../messages/:id`（404 は成功扱い） |
 | **X** | **手動**（Web Intent ボタン） | なし | — |
 
 - 各 Destination は**独立**。1つの失敗が他を止めない。
@@ -259,6 +259,7 @@ lang: ja                      # 任意, 既定 ja
 | POST | `/v1/deliveries/:id/retry` | Bearer | 手動再送（`pending` に戻して即実行） |
 | GET | `/v1/runs` | Bearer | 実行履歴（`run_log`） |
 | POST | `/v1/publication` | Bearer | Publication レコードの再同期（ブートストラップにも使う） |
+| POST | `/v1/credentials/threads` | Bearer | Threads の長期トークンを登録（初回。以後は run が自動更新する） |
 | GET | `/admin` | Cloudflare Access | 管理画面（Delivery 一覧 + 実行履歴 + 再送ボタン） |
 | POST | `/admin/deliveries/:id/retry` | Cloudflare Access | 管理画面からの再送 |
 | POST | `/v1/backfill` | Bearer | 過去分の配信（P5） |
@@ -421,7 +422,7 @@ cms/
 
 | 項目 | 内容 |
 |---|---|
-| 通知 | Discord へ「配信サマリ（成功/失敗/スキップ）」「最終失敗（dead）」「削除伝播の結果」「Backfill 完了」 |
+| 通知 | Discord へ「配信サマリ（成功/失敗/スキップ）」「最終失敗（dead）」「削除伝播の結果」「Backfill 完了」。`DISCORD_NOTIFY_WEBHOOK_URL` を設定すると配信先チャンネルと分けられる（未設定なら `DISCORD_WEBHOOK_URL` に同居） |
 | 管理画面 | `syndicator.hexx.jp/admin`（Cloudflare Access）。Delivery 一覧と再送ボタン |
 | ログ | Workers Logs（Workers Paid: 20M events/月、7日保持） |
 | バックアップ | D1 Time Travel（7日）+ 月次の `wrangler d1 export` を手元に保存 |
@@ -447,7 +448,7 @@ cms/
 | **P1 基盤** ✅ | リポジトリ、Astro、Post/Note、URL、CSS、フィード、OGP、JSON-LD、`.well-known`、link タグ | `hexx.jp` でブログが読め、RSS/JSON Feed が取れ、`.well-known` が AT-URI を返す |
 | **P2 配信基盤 + standard.site** ✅ | `bootstrap`、publication/document の書き込み、Bluesky 配信、D1 スキーマ、Cron、デプロイフック、dry-run、`/admin`、`config.json` の `publicationAtUri` 確定 | 記事公開 → Bluesky に記事カードが出て、`bskyPostRef` がレコードに入る。失敗しても1分後に再試行される |
 | **P3 連合系** ✅ | Mastodon / Misskey / Nostr のアダプタと削除 | 3宛先に配信され、記事削除で3宛先から消える |
-| **P4 残り** | Threads（審査は P3 中に提出）/ Discord 通知 / X 手動ボタン | Threads に投稿され、Discord にサマリが届く |
+| **P4 残り** ✅ | Threads / Discord 配信 / X 手動ボタン | Threads に投稿され、Discord にサマリが届く |
 | **P5 運用** | 削除伝播の全宛先化、Backfill、`/admin`、Runbook、`docs` 整備 | 管理画面から再送でき、過去記事を Threads だけに後から流せる |
 
 Threads の App Review は待ち時間があるため、**P2 完了時点で審査を提出する**。
