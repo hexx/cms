@@ -73,14 +73,36 @@ draft: false # 任意
 
 ## デプロイ
 
-Cloudflare Workers Builds に2プロジェクトを作る。
+```bash
+npx wrangler login                                  # 初回のみ
+cd syndicator && npx wrangler d1 create hexx-syndicator   # database_id を wrangler.jsonc に貼る
+```
 
-| プロジェクト | root | ビルド |
+`wrangler.jsonc` の `name` がそのまま Worker 名になる（`hexx-blog` / `hexx-syndicator`）。
+Worker はデプロイ時に作られるので、**先に手元から1回デプロイ**して動きを確認する。
+
+```bash
+npm run build -w site && npm run deploy -w site
+npm run db:migrate:remote -w syndicator && npm run deploy -w syndicator
+```
+
+### Workers Builds（push で自動デプロイ）
+
+ダッシュボード → Workers & Pages → 対象の Worker → Settings → Builds → Connect to Git。
+**root directory はリポジトリのルート**にする（`package-lock.json` と workspaces がルートにあるため）。
+`-w` を付けた npm スクリプトは cwd が各ワークスペースになるので、wrangler が正しい `wrangler.jsonc` を見つける。
+
+| 項目 | `hexx-blog` | `hexx-syndicator` |
 |---|---|---|
-| `hexx-blog` | `site` | `npm run build -w site` → 静的アセットをデプロイ |
-| `hexx-syndicator` | `syndicator` | `npm run db:migrate:remote -w syndicator` → `wrangler deploy` |
+| Root directory | `/`（空のまま） | `/`（空のまま） |
+| Build command | `npm run build -w site` | `npm run db:migrate:remote -w syndicator` |
+| Deploy command | `npm run deploy -w site` | `npm run deploy -w syndicator` |
+| Build watch paths（include） | `site/*`, `packages/*` | `syndicator/*`, `packages/*` |
 
-watch paths（`site/**` と `syndicator/**`）で分離する。blog のデプロイ後に `POST https://syndicator.hexx.jp/syndicate` を叩くフックを張ると即時に配信され、張らなくても Cron が10分ごとに拾う。
+`packages/shared` を両方が使うので、include に `packages/*` を入れておく。
+マイグレーションを build 側に置いているのは、失敗したときにデプロイさせないため。
+
+デプロイ後に即座に配信したい場合は、Workers Builds の Event Subscriptions（`build.succeeded` を Queue 経由で購読）で Syndicator を叩ける。張らなくても Cron が10分ごとに拾うので必須ではない。
 
 ## Syndicator
 

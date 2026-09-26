@@ -11,7 +11,8 @@
     "preview": "astro preview",
     "test": "vitest run",
     "typecheck": "astro check",
-    "images": "node scripts/render-images.mjs"
+    "images": "node scripts/render-images.mjs",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@hexx/shared": "*",

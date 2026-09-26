@@ -5,6 +5,8 @@ DRY_RUN=true
 SYNDICATE_SECRET=local-secret
 ADMIN_TOKEN=local-token
 ENABLED_DESTINATIONS=bluesky
+# ローカルで /admin を Access 無しで開く（本番では設定しない）
+ADMIN_ALLOW_DIRECT=true
 
 # 実配信を試すときに埋める（DRY_RUN=false にする）
 BSKY_HANDLE=your-handle.bsky.social
