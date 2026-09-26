@@ -30,6 +30,12 @@ npm install
 npm run dev            # サイト (http://localhost:4321)
 ```
 
+> **`NODE_ENV=production` でインストールする場合**
+> ビルドとデプロイに必要なもの（`astro` / `yaml` / `mdast-util-from-markdown` / `wrangler`）は
+> `dependencies` に置いています。`--omit=dev` でもビルドとデプロイが通るようにするためです。
+> 逆に `devDependencies` 側（`typescript` / `vitest` / `sharp` / `@astrojs/check`）は
+> テスト・型チェック・画像生成にしか使いません。
+
 ## よく使うコマンド
 
 ```bash
