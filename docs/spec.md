@@ -65,7 +65,11 @@
 | `syndicator.hexx.jp/health` | 死活監視 | なし |
 
 - ドメインは国内レジストラ（第一候補 XSERVERドメイン、更新 3,102円/年）で取得し、NS を Cloudflare に委譲する（[ADR-0001](./adr/0001-domain-hexx-jp-with-external-registrar.md)）。
-- **DNS は Cloudflare で運用**。DNSSEC を有効化する。
+- **DNS は Cloudflare で運用**。ただし **DNSSEC は当面無効**（後述）。
+  - DNSSEC を使うには Cloudflare が発行する DS レコードを**レジストラに登録**する必要がある
+  - XSERVERドメインには DNSSEC（署名鍵）の設定項目がなく、個別対応も受け付けていない（2026年時点）
+  - そのため hexx.jp では DNSSEC を有効にできない。必要になったら DS 登録に対応したレジストラ（JPDirect 等）へ**移管**する（NS は Cloudflare のままでよい）
+  - ⚠️ Cloudflare 側で DNSSEC をオンにしても DS が無いので効果はなく、後で移管するときに解除が必要になる。**オフのままにする**
 - ATProto ハンドル用に `_atproto.hexx.jp TXT "did=<DID>"` を置く。
 - メール等は今回のスコープ外（必要になったら MX を追加）。
 
@@ -260,7 +264,7 @@ lang: ja                      # 任意, 既定 ja
 | メソッド | パス | 認証 | 用途 |
 |---|---|---|---|
 | GET | `/health` | なし | 死活監視（dry-run と有効 Destination を返す） |
-| POST | `/syndicate` | `X-Syndicate-Secret` | デプロイフック / Cron の実行。同期のサマリを返す |
+| POST | `/syndicate` | `X-Syndicate-Secret` | デプロイフック / Cron の実行。同期のサマリを返す。実行ロックを取れなければ `202 {"skipped":"locked"}` |
 | GET | `/v1/deliveries?status=&path=&limit=` | Bearer | Delivery 一覧 |
 | POST | `/v1/deliveries/:id/retry` | Bearer | 手動再送（`pending` に戻して即実行） |
 | GET | `/v1/runs` | Bearer | 実行履歴（`run_log`） |
@@ -338,6 +342,13 @@ CREATE TABLE run_log (
   trigger    TEXT NOT NULL,        -- cron | deploy-hook | manual-retry | admin-retry
   summary    TEXT NOT NULL,        -- JSON
   error      TEXT
+);
+
+-- 実行ロック（migration 0002）。1行だけ持ち、Cron とデプロイフックの同時実行を防ぐ
+CREATE TABLE run_lock (
+  id         INTEGER PRIMARY KEY CHECK (id = 1),
+  started_at TEXT NOT NULL,
+  trigger    TEXT NOT NULL
 );
 ```
 
@@ -494,7 +505,7 @@ Threads の App Review は待ち時間があるため、**P2 完了時点で審�
 
 ## 14. 初期セットアップ（チェックリスト）
 
-1. [ ] hexx.jp を国内レジストラで取得し、NS を Cloudflare へ委譲、DNSSEC を有効化
+1. [ ] hexx.jp を国内レジストラで取得し、NS を Cloudflare へ委譲（DNSSEC はレジストラ非対応のため見送り。§3 参照）
 2. [ ] Cloudflare に `blog` / `syndicator` の2 Worker とカスタムドメインを作成
 3. [ ] D1 データベースを作成し、マイグレーションを適用
 4. [ ] Bluesky アカウントのハンドルを `hexx.jp` に変更（`_atproto` TXT）

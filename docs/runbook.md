@@ -161,12 +161,30 @@ curl -X POST https://syndicator.hexx.jp/v1/credentials/threads \
 
 ## ドメイン
 
+### レジストラ（XSERVER）と DNS（Cloudflare）の役割分担
+
+| 役割 | 担当 | 備考 |
+|---|---|---|
+| ドメインの登録・**更新・支払い** | **XSERVERドメイン** | NS を Cloudflare に変えてもレジストラは変わらない。Cloudflare から更新請求は来ない |
+| DNS レコード・プロキシ・Worker のカスタムドメイン | Cloudflare | Free プラン（0円） |
+
+**更新通知は XSERVER からしか来ない。** Cloudflare 側には前触れが無いので、
+XSERVER の連絡用メールアドレスを現役にしておき、自動更新の支払い方法（クレジットカード等）を
+切らさないこと。失敗した場合は XSERVER の「自動更新が失敗した場合の再設定」手順で復旧する。
+
 **hexx.jp の失効は、サイト・ATProto ハンドル・standard.site の検証をまとめて壊す。**
-国内レジストラ側で自動更新と支払い方法を必ず維持する。更新月になったら:
+更新月になったら:
 
 1. レジストラで更新（年1回・クレジットカード）
 2. `dig` などで NS と `_atproto` TXT が生きているか確認
 3. `curl https://hexx.jp/.well-known/site.standard.publication` が AT-URI を返すか確認
+
+### DNSSEC は無効のまま
+
+XSERVERドメインは DS レコードの登録に対応していないため、**DNSSEC は使えない**。
+Cloudflare 側でも有効にしない（DS が無いので効果がなく、後で移管するときに解除が要る）。
+DNSSEC が必要になったら、DS 登録に対応したレジストラへ移管する（NS は Cloudflare のままでよい）。
+移管時は必ず DNSSEC が無効であることを確認してから手続きする。
 
 ---
 
