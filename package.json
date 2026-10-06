@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "npm run dev --workspace site",
     "build": "npm run build --workspace site",
+    "deploy:site": "npm run deploy --workspace site",
+    "deploy:syndicator": "npm run deploy --workspace syndicator",
+    "bootstrap": "npm run bootstrap --workspace syndicator",
     "validate": "npm run validate --workspace site",
     "test": "npm run test --workspace packages/shared && npm run test --workspace site && npm run test --workspace syndicator",
     "lint": "oxlint site/src site/scripts packages/shared/src syndicator/src syndicator/scripts --deny-warnings",

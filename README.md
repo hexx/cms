@@ -38,18 +38,28 @@ npm run dev            # サイト (http://localhost:4321)
 
 ## よく使うコマンド
 
-```bash
-npm run dev            # サイトの開発サーバー
-npm run build          # site/dist を生成（prebuild で検証が走る）
-npm run validate       # frontmatter / slug 一意性 / .well-known の整合を検証
-npm test               # shared / site / syndicator のテスト
-npm run lint           # oxlint --deny-warnings
-npm run typecheck      # tsc / astro check
+> **必ずリポジトリのルートで実行してください。**
+> `npm run -w <name>` はワークスペースのディレクトリ内（`site/` や `syndicator/`）から実行すると
+> `No workspaces found` で失敗します（npm の仕様）。ルートから使えるスクリプトを用意しています。
 
-npm run db:local       # Syndicator の D1 マイグレーション（ローカル）
-npm run db:remote      # 同上（本番）
-npm run images -w site # OGP 既定画像とアイコンを再生成（要コミット）
+```bash
+npm run dev                # サイトの開発サーバー
+npm run build              # site/dist を生成（prebuild で検証が走る）
+npm run validate           # frontmatter / slug 一意性 / .well-known の整合を検証
+npm test                   # shared / site / syndicator のテスト
+npm run lint               # oxlint --deny-warnings
+npm run typecheck          # tsc / astro check
+
+npm run deploy:site        # ブログをデプロイ（hexx-blog）
+npm run deploy:syndicator  # Syndicator をデプロイ（hexx-syndicator）
+npm run bootstrap          # publication レコードを作成（初回のみ）
+npm run db:local           # Syndicator の D1 マイグレーション（ローカル）
+npm run db:remote          # 同上（本番）
+
+npm run images -w site     # OGP 既定画像とアイコンを再生成（要コミット）
 ```
+
+`npm run images -w site` だけは例外的に `-w` を使っていますが、これもルートから実行します。
 
 ## 記事を書く
 
@@ -88,8 +98,8 @@ cd syndicator && npx wrangler d1 create hexx-syndicator   # database_id を wran
 Worker はデプロイ時に作られるので、**先に手元から1回デプロイ**して動きを確認する。
 
 ```bash
-npm run build -w site && npm run deploy -w site
-npm run db:migrate:remote -w syndicator && npm run deploy -w syndicator
+npm run build && npm run deploy:site            # hexx-blog
+npm run db:remote && npm run deploy:syndicator  # hexx-syndicator
 ```
 
 ### Workers Builds（push で自動デプロイ）

@@ -430,7 +430,8 @@ cms/
 ```
 
 - **Workers Builds** を2プロジェクト作成する。watch paths で `site/**` と `syndicator/**` を分離。
-  - blog: build `npm run build -w site` → deploy `site/dist`（`prebuild` で検証が走り、失敗するとビルドが止まる）
+  - blog: build `npm run build` → deploy `site/dist`（`prebuild` で検証が走り、失敗するとビルドが止まる）
+  - **コマンドは必ずリポジトリのルートで実行する**（`npm run -w <name>` はワークスペース内から実行すると `No workspaces found` になる）
   - **ビルド・デプロイに必要なパッケージは `dependencies` に置く**（`astro` / `yaml` / `mdast-util-from-markdown` / `wrangler`）。`NODE_ENV=production` や `--omit=dev` のインストールでも通るようにするため。テスト・型チェック・画像生成にしか使わないものだけ `devDependencies` に置く
   - syndicator: `npm run build -w syndicator` → `wrangler deploy`（D1 マイグレーションはデプロイコマンドに含める）
 - デプロイ完了フックで `POST https://syndicator.hexx.jp/syndicate` を叩く。
