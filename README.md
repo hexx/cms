@@ -52,6 +52,7 @@ npm run typecheck          # tsc / astro check
 
 npm run deploy:site        # ブログをデプロイ（hexx-blog）
 npm run deploy:syndicator  # Syndicator をデプロイ（hexx-syndicator）
+npm run bootstrap          # publication レコードを作成（初回のみ）
 npm run db:local           # Syndicator の D1 マイグレーション（ローカル）
 npm run db:remote          # 同上（本番）
 
