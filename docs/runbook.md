@@ -9,6 +9,10 @@ hexx.jp ブログと Syndicator の運用。「どうなっているか」は [s
 
 ---
 
+> **コマンドはすべてリポジトリのルートで実行する。**
+> `npm run -w <name>` は `site/` や `syndicator/` の中で実行すると `No workspaces found` で失敗する。
+> ルートからは `npm run deploy:site` / `npm run deploy:syndicator` / `npm run db:remote` が使える。
+
 ## 日常
 
 ### 記事を公開する
