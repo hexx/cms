@@ -164,7 +164,7 @@ curl -X POST https://syndicator.hexx.jp/v1/credentials/threads \
 
 ```bash
 SYNDICATOR_URL=https://syndicator.hexx.jp ADMIN_TOKEN=... \
-  npm run bootstrap -w syndicator -- --write
+  npm run bootstrap -- --write
 ```
 
 `POST /v1/publication` で publication レコード（rkey = `self`）を作り、`config.json` の `publicationAtUri` を更新する。Bluesky のハンドル設定用 `_atproto` TXT の値も表示される。

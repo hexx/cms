@@ -15,7 +15,7 @@ const token = process.env.ADMIN_TOKEN;
 
 if (!url || !token) {
   console.error('SYNDICATOR_URL と ADMIN_TOKEN を環境変数で渡してください。');
-  console.error('例: SYNDICATOR_URL=https://syndicator.hexx.jp ADMIN_TOKEN=xxx npm run bootstrap -w syndicator');
+  console.error('例: SYNDICATOR_URL=https://syndicator.hexx.jp ADMIN_TOKEN=xxx npm run bootstrap');
   process.exit(1);
 }
 

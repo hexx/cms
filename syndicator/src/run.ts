@@ -119,7 +119,7 @@ export async function runSyndication(ctx: RunContext): Promise<RunSummary> {
   if (pending.length > 0) {
     if (isPlaceholderAtUri(ctx.publicationAtUri)) {
       throw new Error(
-        'publication の AT-URI がプレースホルダのままです。`npm run bootstrap -w syndicator` を実行して config.json を更新してください',
+        'publication の AT-URI がプレースホルダのままです。`npm run bootstrap` を実行して config.json を更新してください',
       );
     }
     const publication = await ensurePublication(ctx);

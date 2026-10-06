@@ -1,7 +1,7 @@
 import { AtpAgent, type BlobRef } from '@atproto/api';
 import { CONFIG, PDS_HOST, SITE_DESCRIPTION, SITE_NAME, SITE_URL, type Rgb } from '@hexx/shared';
 import type { RunContext } from './context.ts';
-import { didFromAtUri } from './env.ts';
+import { didFromAtUri, isPlaceholderAtUri } from './env.ts';
 import type { SnapshotRow } from './types.ts';
 
 const PUBLICATION_COLLECTION = 'site.standard.publication';
@@ -16,8 +16,15 @@ const IMAGE_TIMEOUT_MS = 10_000;
 /**
  * 書き込み先の repo。publication の DID を使う。
  * ログイン中のアカウントが違う場合は、気づかないまま別のリポジトリに書かないよう止める。
+ *
+ * `allowBootstrap` は publication をまだ作っていない（config がプレースホルダ）とき用。
+ * bootstrap 自身がこれを必要とするので、ログイン中のアカウントに書く。
  */
-function repoOf(ctx: RunContext): string {
+function repoOf(ctx: RunContext, options: { allowBootstrap?: boolean } = {}): string {
+  if (options.allowBootstrap && isPlaceholderAtUri(ctx.publicationAtUri)) {
+    return ctx.bsky?.session?.did ?? '';
+  }
+
   const publication = didFromAtUri(ctx.publicationAtUri);
   const session = ctx.bsky?.session?.did;
   if (publication && session && publication !== session) {
@@ -173,7 +180,7 @@ export async function putPublicationRecord(
   const icon = await uploadImage(ctx, `${SITE_URL}/icon-512.png`);
   const record = buildPublicationRecord(icon);
   const response = await agent.com.atproto.repo.putRecord({
-    repo: repoOf(ctx),
+    repo: repoOf(ctx, { allowBootstrap: true }),
     collection: PUBLICATION_COLLECTION,
     rkey: PUBLICATION_RKEY,
     record,
