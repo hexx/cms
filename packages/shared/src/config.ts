@@ -13,7 +13,13 @@ export type SiteConfig = {
   author: { name: string; url: string };
   /** rel="me" で並べる本人確認リンク */
   relMe: string[];
-  /** ATProto の PDS ホスト（Bluesky のレコード置き場） */
+  /**
+   * Bluesky の入口（entryway）ホスト。ログインと XRPC の経路に使う。
+   *
+   * 実際の PDS はアカウントごとに違う（例: brittlegill.us-west.host.bsky.network）。
+   * DID ドキュメント（https://plc.directory/<did>）の serviceEndpoint がそれを示す。
+   * bsky.social は entryway なので、どの PDS のアカウントでもここを経由して読み書きできる。
+   */
   pdsHost: string;
   /** standard.site の publication レコードの AT-URI。ブートストラップで確定させる */
   publicationAtUri: string;

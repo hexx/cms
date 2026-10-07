@@ -126,6 +126,8 @@ npm run db:remote && npm run deploy:syndicator  # hexx-syndicator
 
 `config.json` がサイトの同一性（URL・名前・説明・テーマ・`pdsHost`・`publicationAtUri`）の唯一のソース。`.well-known/site.standard.publication` はビルド時にここから生成される（git 管理外）。
 
+`pdsHost` は **Bluesky の入口（entryway）** で、既定の `bsky.social` のままで構いません。実際の PDS はアカウントごとに違う置き場所（例: `brittlegill.us-west.host.bsky.network`）で、DID ドキュメント（`https://plc.directory/<did>` の `serviceEndpoint`）が示します。`bsky.social` 経由なら、どの PDS のアカウントでも読み書きできます。
+
 `publicationAtUri` が `at://did:plc:REPLACE_ME/...` のままだとレコードを書き込まずに失敗する（ビルドは警告のみで通る）。
 
 ### シークレット（`wrangler secret put`）
