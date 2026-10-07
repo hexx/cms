@@ -243,6 +243,8 @@ lang: ja                      # 任意, 既定 ja
 
 **安全装置**: フィードが空なのに手元に公開中の Document がある場合、`unpublish` は行わない（壊れたデプロイやフィードの取り違えで全記事を削除しないため）。`skippedUnpublish` として記録し、Discord へ通知する。フィードの `home_page_url` が `SITE_URL` と一致しない場合も取得時点で失敗させる。
 
+**安全装置の出口**: 意図的に全部消したときなど、見送られた削除を実行する手段として `POST /v1/unpublish` を用意する（`{"all":true}` か `{"paths":[...]}`）。レコード削除と SNS 投稿の取り消しまでその場で処理する。安全装置が働いたことは Discord に通知されるので、気づかないまま残ることはない。
+
 ### 6.4 冪等性と再試行
 
 - 実行は **D1 の実行ロック**（`run_lock`）で直列化する。Cron とデプロイフックが重なったら片方は `202 skipped: locked` で素通りする。ロックは2分で期限切れになるので、Worker が落ちても固まらない。
@@ -273,6 +275,7 @@ lang: ja                      # 任意, 既定 ja
 | GET | `/admin` | Cloudflare Access（または Bearer） | 管理画面（Destination の状態 + Delivery 一覧 + 実行履歴 + 再送ボタン） |
 | POST | `/admin/deliveries/:id/retry` | Cloudflare Access（または Bearer） | 管理画面からの再送 |
 | POST | `/v1/backfill` | Bearer | 過去分の配信。まだ Delivery が無いものを予約し、`force` で送信済みもやり直す |
+| POST | `/v1/unpublish` | Bearer | 手動で非公開にする（安全装置の出口）。`{"all":true}` か `{"paths":[...]}`。レコード削除と SNS 投稿の取り消しまで進める |
 
 ---
 

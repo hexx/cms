@@ -4,8 +4,14 @@ import { putPublicationRecord } from './atproto.ts';
 import { runBackfill } from './backfill.ts';
 import { createContext } from './context.ts';
 import { setThreadsCredential } from './threads.ts';
-import { getDelivery, listDeliveries, listRunLogs, requeueDelivery } from './db.ts';
-import { processDelivery } from './delivery.ts';
+import {
+  getDelivery,
+  listDeliveries,
+  listRunLogs,
+  listSnapshots,
+  requeueDelivery,
+} from './db.ts';
+import { processDelivery, processDueDeliveries } from './delivery.ts';
 import {
   enabledDestinations,
   isDryRun,
@@ -13,7 +19,7 @@ import {
   publicationAtUri,
   type Env,
 } from './env.ts';
-import { runAndRecord } from './run.ts';
+import { runAndRecord, unpublishDocument } from './run.ts';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -89,6 +95,46 @@ app.post('/v1/deliveries/:id/retry', async (c) => {
 });
 
 app.get('/v1/runs', async (c) => c.json({ runs: await listRunLogs(c.env.DB, 50) }));
+
+/**
+ * 手動で非公開にする。
+ *
+ * フィードが空のときは安全装置（壊れたデプロイで全記事を消さないため）が
+ * 削除を見送るので、意図的な削除の出口としてこれを使う。
+ *   { "all": true }                  → 公開中のものを全部
+ *   { "paths": ["/posts/..."] }      → 指定したものだけ
+ */
+app.post('/v1/unpublish', async (c) => {
+  const body = (await c.req.json().catch(() => null)) as
+    | { paths?: string[]; all?: boolean }
+    | null;
+  if (!body?.all && !body?.paths?.length) {
+    return c.json({ error: 'paths か all が必要です' }, 400);
+  }
+
+  const context = createContext(c.env, 'manual-unpublish');
+  if (context.dryRun) {
+    return c.json({ error: 'DRY_RUN が有効な間は実行できません' }, 409);
+  }
+
+  const snapshots = await listSnapshots(c.env.DB);
+  const live = snapshots.filter((snapshot) => !snapshot.unpublished_at);
+  const targets = body.all
+    ? live
+    : live.filter((snapshot) => body.paths?.includes(snapshot.path) ?? false);
+
+  for (const snapshot of targets) {
+    await unpublishDocument(context, snapshot.path);
+  }
+  // 予約した削除（レコード・SNS 投稿）をその場で処理する
+  const deliveries = targets.length > 0 ? await processDueDeliveries(context, 100) : null;
+
+  return c.json({
+    unpublished: targets.length,
+    paths: targets.map((snapshot) => snapshot.path),
+    ...(deliveries ? { deliveries } : {}),
+  });
+});
 
 /**
  * 公開済み Document を後から追加した Destination へ流す。

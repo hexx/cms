@@ -4,7 +4,7 @@ import { createContext, type RunContext } from './context.ts';
 import { DESTINATIONS } from './destinations/index.ts';
 import { createTestDb } from './testing/d1.ts';
 import type { Env } from './env.ts';
-import { runSyndication } from './run.ts';
+import { runAndRecord, runSyndication } from './run.ts';
 
 const FEED_URL = 'https://example.test/feed-all.json';
 const TEST_PUBLICATION = 'at://did:plc:testdid/site.standard.publication/self';
@@ -322,6 +322,19 @@ describe('runSyndication: 差分と Delivery', () => {
     expect(second.skippedUnpublish).toBe(3);
     expect(second.unpublish).toBe(0);
     expect(second.deliveries.deleted).toBe(0);
+  });
+
+  it('見送ったときは手動削除の出口を Discord で知らせる', async () => {
+    const db = createTestDb();
+    const fake = createFakeAgent();
+    installFetch(buildFeed(SAMPLE_PATHS.map((path) => feedItem(path))));
+    await runSyndication(makeContext({ db, fake }));
+
+    const calls = installFetch(buildFeed([]));
+    const result = await runAndRecord(makeContext({ db, fake, notifications: true }));
+
+    expect('skippedUnpublish' in result && result.skippedUnpublish).toBe(3);
+    expect(calls.some((url) => url.startsWith(DISCORD))).toBe(true);
   });
 });
 

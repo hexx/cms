@@ -1,5 +1,14 @@
-import { describe, expect, it } from 'vitest';
-import { tryAcquireRunLock } from './db.ts';
+import { afterEach, describe, expect, it } from 'vitest';
+import {
+  claimDelivery,
+  createDelivery,
+  getDeliveryFor,
+  getSnapshot,
+  insertSnapshot,
+  markSent,
+  tryAcquireRunLock,
+} from './db.ts';
+import { DESTINATIONS } from './destinations/index.ts';
 import type { Env } from './env.ts';
 import { app } from './index.ts';
 import { createTestDb } from './testing/d1.ts';
@@ -144,5 +153,119 @@ describe('POST /v1/credentials/threads', () => {
       makeEnv(),
     );
     expect(response.status).toBe(400);
+  });
+});
+
+describe('POST /v1/unpublish', () => {
+  const AUTH = { Authorization: 'Bearer token', 'Content-Type': 'application/json' };
+  const NOW = '2026-10-06T00:00:00.000Z';
+  const SAMPLE = '/posts/2026/10/sample';
+
+  const originalBluesky = DESTINATIONS.bluesky;
+  const removed: string[] = [];
+
+  afterEach(() => {
+    DESTINATIONS.bluesky = originalBluesky;
+    removed.length = 0;
+  });
+
+  /** 送信済みの Document を1件用意する。Bluesky だけは取り消しを記録するフェイクにする */
+  async function seedLiveDocument(env: Env, path: string = SAMPLE): Promise<void> {
+    DESTINATIONS.bluesky = {
+      id: 'bluesky',
+      label: 'Bluesky（テスト）',
+      async isConfigured() {
+        return true;
+      },
+      async publish() {
+        throw new Error('このテストでは使わない');
+      },
+      async remove(_ctx, delivery) {
+        if (delivery.external_uri) removed.push(delivery.external_uri);
+      },
+    };
+
+    await insertSnapshot(
+      env.DB,
+      {
+        path,
+        kind: 'post',
+        slug: path.split('/').pop() ?? 'sample',
+        title: 'サンプル',
+        tags: [],
+        publishedAt: NOW,
+        contentHash: `sha256:${path}`,
+      },
+      NOW,
+    );
+    await createDelivery(env.DB, path, 'bluesky', NOW);
+    const row = await getDeliveryFor(env.DB, path, 'bluesky');
+    expect(await claimDelivery(env.DB, row!.id, NOW)).toBe(true);
+    expect(
+      await markSent(
+        env.DB,
+        row!.id,
+        { externalUri: 'at://did:plc:testdid/app.bsky.feed.post/post1' },
+        NOW,
+      ),
+    ).toBe(true);
+  }
+
+  function post(env: Env, body: unknown) {
+    return app.request(
+      '/v1/unpublish',
+      { method: 'POST', headers: AUTH, body: JSON.stringify(body) },
+      env,
+    );
+  }
+
+  it('paths も all も無ければ 400', async () => {
+    const response = await post(makeEnv(), {});
+    expect(response.status).toBe(400);
+  });
+
+  it('DRY_RUN のときは 409（dry-run は何も変えない）', async () => {
+    const response = await post(makeEnv({ DRY_RUN: 'true' }), { all: true });
+    expect(response.status).toBe(409);
+  });
+
+  it('all: true で公開中の Document を非公開にし、投稿の取り消しまで進める', async () => {
+    const env = makeEnv();
+    await seedLiveDocument(env);
+
+    const response = await post(env, { all: true });
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { unpublished: number; paths: string[] };
+    expect(body.unpublished).toBe(1);
+    expect(body.paths).toEqual([SAMPLE]);
+
+    expect((await getSnapshot(env.DB, SAMPLE))?.unpublished_at).toBeTruthy();
+    expect(await getDeliveryFor(env.DB, SAMPLE, 'bluesky')).toMatchObject({
+      action: 'delete',
+      status: 'deleted',
+    });
+    expect(removed).toEqual(['at://did:plc:testdid/app.bsky.feed.post/post1']);
+  });
+
+  it('paths で対象を絞れる', async () => {
+    const env = makeEnv();
+    await seedLiveDocument(env, '/posts/2026/10/keep');
+    await seedLiveDocument(env, '/posts/2026/10/drop');
+
+    const body = (await (await post(env, { paths: ['/posts/2026/10/drop'] })).json()) as {
+      paths: string[];
+    };
+    expect(body.paths).toEqual(['/posts/2026/10/drop']);
+    expect((await getSnapshot(env.DB, '/posts/2026/10/keep'))?.unpublished_at).toBeNull();
+    expect((await getSnapshot(env.DB, '/posts/2026/10/drop'))?.unpublished_at).toBeTruthy();
+  });
+
+  it('既に非公開のものは二度処理しない', async () => {
+    const env = makeEnv();
+    await seedLiveDocument(env);
+    await post(env, { all: true });
+
+    const body = (await (await post(env, { all: true })).json()) as { unpublished: number };
+    expect(body.unpublished).toBe(0);
   });
 });
