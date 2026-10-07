@@ -190,7 +190,7 @@ lang: ja                      # 任意, 既定 ja
 1. Bluesky アカウントを用意し、ハンドルを `hexx.jp` に変更（`_atproto` TXT）。
 2. Syndicator 用の App Password を発行（sns-client 用とは**別に発行する**）。
 3. Syndicator をデプロイし、`BSKY_HANDLE` / `BSKY_APP_PASSWORD` / `ADMIN_TOKEN` / `SYNDICATE_SECRET` を `wrangler secret put` で設定。
-4. `SYNDICATOR_URL=... ADMIN_TOKEN=... npm run bootstrap -w syndicator -- --write`
+4. `SYNDICATOR_URL=... ADMIN_TOKEN=... npm run bootstrap -- --write`
    - `POST /v1/publication` が publication レコード（rkey = `self`）を作り、AT-URI を返す
    - `--write` で `packages/shared/config.json` の `publicationAtUri` を更新する
    - 併せて `_atproto.hexx.jp TXT "did=..."` に貼る値も表示される
@@ -514,7 +514,7 @@ Threads の App Review は待ち時間があるため、**P2 完了時点で審�
 5. [ ] Syndicator 用 App Password を発行し、`wrangler secret put`
 6. [ ] Mastodon / Misskey / Nostr / Discord の資格情報を取得し、`wrangler secret put`
 7. [ ] Meta 開発者アプリを作成し、Threads の App Review を申請（P4 までに審査完了）
-8. [ ] `npm run bootstrap -w syndicator -- --write` で publication レコードを作り、`publicationAtUri` を確定（D1 マイグレーションは先に適用しておく）
+8. [ ] `npm run bootstrap -- --write` で publication レコードを作り、`publicationAtUri` を確定（D1 マイグレーションは先に適用しておく）
 9. [ ] Workers Builds に2プロジェクトを接続（watch paths 設定）
 10. [ ] Cloudflare Access のアプリを `syndicator.hexx.jp/admin*` に作成
 11. [ ] デプロイし、`/.well-known/site.standard.publication` と Bluesky カードを確認
