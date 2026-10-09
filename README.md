@@ -140,6 +140,7 @@ npm run db:remote && npm run deploy:syndicator  # hexx-syndicator
 | `MASTODON_TOKEN` | Mastodon への投稿（インスタンス URL は `wrangler.jsonc` の vars でも可） |
 | `MISSKEY_TOKEN` | Misskey への投稿（インスタンスは vars の `MISSKEY_INSTANCE_URL`、既定 `https://misskey.io`） |
 | `NOSTR_NSEC` | Nostr への投稿（`nsec1...` か 64 桁 hex）。**Syndicator にしか置かない** |
+| `ACCESS_TEAM_DOMAIN` / `ACCESS_AUD` | 管理画面の認証（Cloudflare Access）。秘密ではないが、設定は `wrangler secret put` が手軽 |
 | `DISCORD_WEBHOOK_URL` | Discord への配信（embed 1枚）。運用通知もここに来る |
 | `DISCORD_NOTIFY_WEBHOOK_URL` | 任意。運用通知だけ別チャンネルに分けたいとき |
 
@@ -196,7 +197,7 @@ curl -X POST https://syndicator.hexx.jp/v1/backfill \
 
 ### 運用
 
-- 管理画面: `https://syndicator.hexx.jp/admin`（Cloudflare Access で保護する。`/admin*` にアプリを張る）
+- 管理画面: `https://syndicator.hexx.jp/admin`（Cloudflare Access で保護する。`/admin*` にアプリを張り、`ACCESS_TEAM_DOMAIN` と `ACCESS_AUD` を設定する。JWT の署名を検証するので、Access を通らずにヘッダーを真似ても開けない）
 - 手順書: [docs/runbook.md](./docs/runbook.md)（失敗時の切り分け、再送、ローテーション、緊急停止、D1 の復元）
 - 配信の失敗は指数バックオフ（1分 → 5分 → 30分 → 2時間 → 12時間）で再試行し、それでも失敗したら `dead` + Discord 通知
 - 実行は D1 のロックで直列化する（Cron とデプロイフックが重なっても二重処理しない）

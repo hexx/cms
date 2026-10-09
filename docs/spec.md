@@ -59,7 +59,7 @@
 |---|---|---|
 | `hexx.jp` | blog Worker（静的アセット） | なし（公開） |
 | `www.hexx.jp` | → `hexx.jp` へ 301 | なし |
-| `syndicator.hexx.jp/admin*` | 管理画面（HTML） | Cloudflare Access（sns-client と同じメールポリシー） |
+| `syndicator.hexx.jp/admin*` | 管理画面（HTML） | Cloudflare Access（sns-client と同じメールポリシー）。**JWT の署名・`aud`・期限を検証する**ので `ACCESS_TEAM_DOMAIN` と `ACCESS_AUD` の設定が必要 |
 | `syndicator.hexx.jp/v1/*` | 読み取り API | `Authorization: Bearer <ADMIN_TOKEN>` |
 | `syndicator.hexx.jp/syndicate` | デプロイフック用 | `X-Syndicate-Secret`（共有シークレット）+ レート制限 |
 | `syndicator.hexx.jp/health` | 死活監視 | なし |
@@ -276,6 +276,8 @@ lang: ja                      # 任意, 既定 ja
 | POST | `/admin/deliveries/:id/retry` | Cloudflare Access（または Bearer） | 管理画面からの再送 |
 | POST | `/v1/backfill` | Bearer | 過去分の配信。まだ Delivery が無いものを予約し、`force` で送信済みもやり直す |
 | POST | `/v1/unpublish` | Bearer | 手動で非公開にする（安全装置の出口）。`{"all":true}` か `{"paths":[...]}`。レコード削除と SNS 投稿の取り消しまで進める |
+
+`/admin*` の認証は「Access のヘッダーがあるか」ではなく **JWT の署名検証**で行う（ヘッダーは誰でも名乗れるため）。検証に失敗したリクエストは 403 にし、理由を Workers Logs に残す。Bearer トークン（`ADMIN_TOKEN`）はスクリプト用に併用できる。
 
 ---
 
@@ -519,6 +521,6 @@ Threads の App Review は待ち時間があるため、**P2 完了時点で審�
 7. [ ] Meta 開発者アプリを作成し、Threads の App Review を申請（P4 までに審査完了）
 8. [ ] `npm run bootstrap -- --write` で publication レコードを作り、`publicationAtUri` を確定（D1 マイグレーションは先に適用しておく）
 9. [ ] Workers Builds に2プロジェクトを接続（watch paths 設定）
-10. [ ] Cloudflare Access のアプリを `syndicator.hexx.jp/admin*` に作成
+10. [ ] Cloudflare Access のアプリを `syndicator.hexx.jp/admin*` に作成し、`ACCESS_TEAM_DOMAIN` と `ACCESS_AUD` を設定
 11. [ ] デプロイし、`/.well-known/site.standard.publication` と Bluesky カードを確認
 12. [ ] dry-run で全 Destination を通し、1件だけ実配信 → 削除まで確認

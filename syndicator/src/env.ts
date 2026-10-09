@@ -9,6 +9,10 @@ export type Env = {
   ADMIN_TOKEN?: string;
   /** 'true' にすると /admin を Access 無しでも開ける（ローカル検証用） */
   ADMIN_ALLOW_DIRECT?: string;
+  /** Cloudflare Access のチームドメイン（https://<team>.cloudflareaccess.com） */
+  ACCESS_TEAM_DOMAIN?: string;
+  /** Cloudflare Access アプリケーションの Audience (AUD) タグ */
+  ACCESS_AUD?: string;
 
   BSKY_HANDLE?: string;
   BSKY_APP_PASSWORD?: string;

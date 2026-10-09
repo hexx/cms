@@ -156,6 +156,42 @@ describe('POST /v1/credentials/threads', () => {
   });
 });
 
+describe('GET /admin（認証）', () => {
+  it('認証が無ければ 403', async () => {
+    const response = await app.request('/admin', {}, makeEnv());
+    expect(response.status).toBe(403);
+  });
+
+  it('Access ヘッダーを偽装しても通さない（署名を検証する）', async () => {
+    // 「ヘッダーがあれば通す」実装だとここが 200 になってしまう
+    const response = await app.request(
+      '/admin',
+      { headers: { 'cf-access-jwt-assertion': 'dummy' } },
+      makeEnv(),
+    );
+    expect(response.status).toBe(403);
+  });
+
+  it('ACCESS_TEAM_DOMAIN と ACCESS_AUD が無ければ Access 経由でも通さない', async () => {
+    const response = await app.request(
+      '/admin',
+      { headers: { 'cf-access-jwt-assertion': 'dummy' } },
+      makeEnv({ ACCESS_TEAM_DOMAIN: 'https://test.cloudflareaccess.com' }),
+    );
+    expect(response.status).toBe(403);
+  });
+
+  it('Bearer トークンがあれば通す', async () => {
+    const response = await app.request('/admin', { headers: { Authorization: 'Bearer token' } }, makeEnv());
+    expect(response.status).toBe(200);
+  });
+
+  it('ADMIN_ALLOW_DIRECT=true なら通す（ローカル検証用）', async () => {
+    const response = await app.request('/admin', {}, makeEnv({ ADMIN_ALLOW_DIRECT: 'true' }));
+    expect(response.status).toBe(200);
+  });
+});
+
 describe('POST /v1/unpublish', () => {
   const AUTH = { Authorization: 'Bearer token', 'Content-Type': 'application/json' };
   const NOW = '2026-10-06T00:00:00.000Z';
