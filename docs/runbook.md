@@ -40,7 +40,7 @@ URL と slug は変えない。
 **レコードと全 Destination の投稿が自動で削除される**。
 
 ⚠️ フィードが空になったときは削除伝播を見送る安全装置が働く（`skippedUnpublish`）。
-壊れたデプロイで全記事を消さないためなので、意図的に全部消したときは手動で行う。
+壊れたデプロイで全記事を消さないための仕組みなので、**意図的に全部消したときは下の「意図的に全部消したとき」を実行する**。
 
 ---
 
@@ -77,6 +77,28 @@ curl -X POST https://syndicator.hexx.jp/v1/backfill \
 ⚠️ **Threads は再送の前に手動で確認する。** Threads API には冪等キーが無く、タイムアウトしたときに実際は投稿されていた場合、再送で二重に投稿される。他の宛先は Mastodon の `Idempotency-Key`、Nostr のイベント id、Discord のメッセージ id で追跡できる。
 
 ---
+
+## 意図的に全部消したとき（安全装置の出口）
+
+記事を全部消すと、フィードが空になるため**削除伝播が安全装置で見送られます**。
+Discord に「フィードが空のため N 件の削除を見送りました」と届いたら、それが意図どおりかを確認してから実行します。
+
+```bash
+# 公開中のものを全部消す
+curl -X POST https://syndicator.hexx.jp/v1/unpublish \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"all":true}'
+
+# 特定のものだけ
+curl -X POST https://syndicator.hexx.jp/v1/unpublish \
+  -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"paths":["/posts/2026/09/old-post"]}'
+```
+
+standard.site のレコード削除と、SNS 側の投稿の取り消しまでその場で処理します（`DRY_RUN` 中は 409 で拒否）。
+
+> 記事を1本でも残していれば安全装置は働かないので、通常の削除は自動で伝播します。
+> 見送られた場合も、**次の記事を1本公開すればフィードが空でなくなるので自動で片付きます**。
 
 ## 後から宛先を足す
 

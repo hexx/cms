@@ -108,9 +108,7 @@ export async function runSyndication(ctx: RunContext): Promise<RunSummary> {
 
   summary.skippedUnpublish = plan.skippedUnpublish;
   for (const row of plan.unpublish) {
-    await markUnpublished(db, row.path, nowIso);
-    await scheduleDeletionForPath(db, row.path, nowIso);
-    await deleteDocumentRecord(ctx, row.path);
+    await unpublishDocument(ctx, row.path);
     summary.unpublish += 1;
   }
 
@@ -246,6 +244,18 @@ function entryToSnapshot(entry: FeedEntry, now: string): SnapshotRow {
   };
 }
 
+/**
+ * 1つの Document を非公開にする（レコード削除 + 削除伝播の予約）。
+ * フィードが空のときは安全装置で見送るので、意図的な削除の出口として
+ * `POST /v1/unpublish` からも呼ぶ。
+ */
+export async function unpublishDocument(ctx: RunContext, path: string): Promise<void> {
+  const nowIso = ctx.now.toISOString();
+  await markUnpublished(ctx.env.DB, path, nowIso);
+  await scheduleDeletionForPath(ctx.env.DB, path, nowIso);
+  if (!ctx.dryRun) await deleteDocumentRecord(ctx, path);
+}
+
 async function deleteDocumentRecord(ctx: RunContext, path: string): Promise<void> {
   const db = ctx.env.DB;
   const record = await getDocumentRecord(db, path);
@@ -295,6 +305,12 @@ export async function runAndRecord(
 
     if (summary.deliveries.dead > 0) {
       await notify(ctx, `⚠️ 配信に失敗したまま停止した Delivery が ${summary.deliveries.dead} 件あります`);
+    } else if (summary.skippedUnpublish > 0) {
+      await notify(
+        ctx,
+        `⚠️ フィードが空のため ${summary.skippedUnpublish} 件の削除を見送りました（安全装置）。` +
+          '意図的な削除なら `POST /v1/unpublish {"all":true}` で消せます',
+      );
     } else if (changed && !ctx.dryRun) {
       await notify(
         ctx,
