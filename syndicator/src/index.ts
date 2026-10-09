@@ -3,6 +3,7 @@ import { renderAdmin } from './admin.ts';
 import { putPublicationRecord } from './atproto.ts';
 import { runBackfill } from './backfill.ts';
 import { createContext } from './context.ts';
+import { verifyAccessToken } from './access.ts';
 import { setThreadsCredential } from './threads.ts';
 import {
   getDelivery,
@@ -203,23 +204,47 @@ app.post('/v1/publication', async (c) => {
  * ここでは追加の認証をしない（外部からは Access が門番になる）。
  */
 /**
- * Cloudflare Access が付与するヘッダー。署名検証まではしないが、
- * Access を経由していないリクエスト（＝設定漏れ）を素通しさせないための多層防御。
- * Bearer トークンを持つスクリプトは素通しできる。
+ * 管理画面を開いてよいか。
+ *
+ * - `ADMIN_ALLOW_DIRECT=true`（ローカル検証用）
+ * - Bearer トークン（スクリプト用）
+ * - Cloudflare Access の JWT（**署名・aud・期限を検証する**）
+ *
+ * ヘッダーの有無だけを見ると、誰でも同じ名前のヘッダーを付けて通れてしまうので、
+ * Access 経由かどうかは必ず署名で確かめる。
  */
-function isAdminRequest(c: Context<{ Bindings: Env }>): boolean {
+async function isAdminRequest(c: Context<{ Bindings: Env }>): Promise<boolean> {
   if (c.env.ADMIN_ALLOW_DIRECT === 'true') return true;
-  if (c.req.header('cf-access-jwt-assertion')) return true;
+
   const token = c.env.ADMIN_TOKEN;
   const provided = (c.req.header('authorization') ?? '').replace(/^Bearer /, '');
-  return Boolean(token && provided && timingSafeEqual(token, provided));
+  if (token && provided && timingSafeEqual(token, provided)) return true;
+
+  const teamDomain = c.env.ACCESS_TEAM_DOMAIN;
+  const aud = c.env.ACCESS_AUD;
+  const assertion = c.req.header('cf-access-jwt-assertion');
+  if (!teamDomain || !aud || !assertion) return false;
+
+  const result = await verifyAccessToken(assertion, { teamDomain, aud });
+  if (!result.ok) {
+    console.warn(
+      JSON.stringify({
+        level: 'warn',
+        msg: 'Access の JWT を検証できませんでした',
+        reason: result.reason,
+      }),
+    );
+    return false;
+  }
+  return true;
 }
 
 app.get('/admin', async (c) => {
-  if (!isAdminRequest(c)) {
+  if (!(await isAdminRequest(c))) {
     return c.text(
-      'この画面は Cloudflare Access で保護してください（syndicator.hexx.jp/admin* にアプリを作成）。\n' +
-        '直接叩く場合は Authorization: Bearer <ADMIN_TOKEN> を付けてください。',
+      'この画面は Cloudflare Access で保護してください（syndicator.hexx.jp/admin* にアプリを作成し、' +
+        'ACCESS_TEAM_DOMAIN と ACCESS_AUD を設定する）。\n' +
+        'スクリプトから叩く場合は Authorization: Bearer <ADMIN_TOKEN> を付けてください。',
       403,
     );
   }
@@ -228,7 +253,7 @@ app.get('/admin', async (c) => {
 });
 
 app.post('/admin/deliveries/:id/retry', async (c) => {
-  if (!isAdminRequest(c)) return c.text('forbidden', 403);
+  if (!(await isAdminRequest(c))) return c.text('forbidden', 403);
   const id = Number(c.req.param('id'));
   const row = await getDelivery(c.env.DB, id);
   if (row) {

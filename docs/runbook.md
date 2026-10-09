@@ -3,7 +3,7 @@
 hexx.jp ブログと Syndicator の運用。「どうなっているか」は [spec.md](./spec.md)、
 「なぜそうしたか」は [adr/](./adr/) を見る。
 
-- 管理画面: `https://syndicator.hexx.jp/admin`（Cloudflare Access）
+- 管理画面: `https://syndicator.hexx.jp/admin`（Cloudflare Access。設定は下の「管理画面（Access）の設定」）
 - 実行履歴: `GET /v1/runs`（Bearer `ADMIN_TOKEN`）
 - 配信一覧: `GET /v1/deliveries?status=dead`（Bearer `ADMIN_TOKEN`）
 
@@ -77,6 +77,28 @@ curl -X POST https://syndicator.hexx.jp/v1/backfill \
 ⚠️ **Threads は再送の前に手動で確認する。** Threads API には冪等キーが無く、タイムアウトしたときに実際は投稿されていた場合、再送で二重に投稿される。他の宛先は Mastodon の `Idempotency-Key`、Nostr のイベント id、Discord のメッセージ id で追跡できる。
 
 ---
+
+## 管理画面（Access）の設定
+
+`/admin*` は **JWT の署名を検証**します。Access のアプリを作るだけでは開けないので、チームドメインと Audience を Worker に教えてください。
+
+1. **Zero Trust → Access → Applications → Add an application → Self-hosted**
+   - Application domain: `syndicator.hexx.jp`、path に `admin*`
+   - Policy: Allow / Include / Emails = 自分のメールアドレス
+2. 作成したアプリの **Overview に Audience (AUD) タグ**があるのでコピー
+3. チームドメイン（`https://<チーム名>.cloudflareaccess.com`）は Zero Trust の Settings で確認できる
+4. Worker に設定（どちらも公開情報なので secret でなくてもよい）
+
+```bash
+cd syndicator
+npx wrangler secret put ACCESS_TEAM_DOMAIN   # https://<チーム名>.cloudflareaccess.com
+npx wrangler secret put ACCESS_AUD           # AUD タグ
+```
+
+設定できたら `https://syndicator.hexx.jp/admin` をブラウザで開いて、Access のログイン後に画面が出ることを確認する。
+開けない場合は Workers Logs に `Access の JWT を検証できませんでした` と理由が出る。
+
+> スクリプトからは今までどおり `Authorization: Bearer <ADMIN_TOKEN>` で `/admin` も `/v1/*` も叩けます。
 
 ## 意図的に全部消したとき（安全装置の出口）
 
