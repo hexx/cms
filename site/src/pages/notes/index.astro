@@ -10,5 +10,5 @@ const documents = filterByKind(await getPublishedDocuments(), 'note');
 <BaseLayout title="ノート" canonical={absoluteUrl('/notes')} description="短文のノート一覧。">
   <h1 class="page-title">ノート</h1>
   <p class="lede">短く書いたもの。SNS へそのまま流れる。</p>
-  <DocumentList documents={documents} emptyMessage="まだノートがありません。" />
+  <DocumentList documents={documents} emptyMessage="まだノートがありません。" groupByYear />
 </BaseLayout>

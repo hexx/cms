@@ -404,8 +404,76 @@ Cron トリガーは10分ごとに1本。`delivery` の due な行の処理と�
 
 ### 8.4 スタイル
 
-- 素の CSS + CSS 変数。ライト/ダーク対応。外部 CSS フレームワークは使わない。
+#### 8.4.1 原則
+
+> 実装状況: 本節は**これから作る視覚言語**を定める。現行実装との差は P6（§11）で埋める。
+
+参考元は**しずかなインターネット**（sizu.me）。**輸入するのは視覚言語だけ**で、情報設計は輸入しない
+（[ADR-0011](../adr/0011-quiet-visual-language.md)）。
+
+- **静けさは余白と行間で作る**。罫線・影・彩度を減らし、面と文字の階調で関係を示す。
+- **情報は削らない**。種別・タイトル・説明・日付・タグは一覧からも記事からも落とさない。参考元の
+  「説明もタグも出さない1行リスト」は採らない。
+- 素の CSS + CSS 変数。外部 CSS フレームワークは使わない
+  （[ADR-0010](../adr/0010-plain-css-over-tailwind.md)）。
 - Web フォントは使わない（システムフォントスタック。日本語は Hiragino / Noto Sans JP / Meiryo を順に参照）。
+- **ライトを正典**として設計し、ダークは同じトークン構造で追従させる（`prefers-color-scheme`）。
+- 動きは 150–200ms の色・罫線の変化に限る。`prefers-reduced-motion: reduce` を尊重する。
+- 見た目の変更は、主要ページの**変更前後のスクリーンショットを PR に添付**して確認する
+  （`npx playwright screenshot`。visual regression テストの常設はしない）。
+
+#### 8.4.2 色
+
+`:root` の `--bg` / `--fg` / `--accent` / `--accent-fg` は `packages/shared/config.json` の `basicTheme`
+と一致させる。一致しなければ **prebuild の検証でビルドが止まる**
+（`site/scripts/validate-content.mjs`、[ADR-0012](../adr/0012-basic-theme-color-sync.md)）。
+
+無彩色の階調（背景・面・罫線・補助文字）を主役にし、**青は能動 UI にだけ**使う。
+
+| 用途 | 色 |
+|---|---|
+| 本文中のリンク | 本文色 + ドット下線（青くしない） |
+| ナビの現在位置 | `--accent` |
+| focus ring | `--accent` |
+| 主要操作（共有ボタンの hover 等） | `--accent` |
+| 罫線 | `--border`（淡い階調） |
+| 面（カード背景・フッター） | `--bg-subtle` |
+
+OGP 既定画像は淡い紙面トーン + 小さなアクセントで作り直す。favicon は青地のまま（`basicTheme.accent`
+と一致しているため触らない）。
+
+#### 8.4.3 字組
+
+| | 値 |
+|---|---|
+| 本文 | 16px / 行間 2.0 |
+| 列幅 | 42rem（672px） |
+| 記事タイトル | 22–28px（clamp） |
+| 本文 `h2` | 1.15em + 下罫線 1px（`--border`） |
+| 本文 `h3` | 1.15em（罫線なし） |
+| 引用 | 淡い面 + 1px 枠 + 角丸 1.2rem、行間 1.9 |
+| 補助ラベル（種別・年見出し） | 12–13px、字間を広く、`--fg-muted` |
+| コードブロック | 現行どおり shiki の github-light / github-dark |
+
+#### 8.4.4 一覧（`DocumentList` / `DocumentCard`）
+
+枠と背景を持たない**行**。区切りは余白のみとし、罫線は年見出しの下の1本だけ。各行は3行で組む。
+
+1. 種別ラベル（`POST` / `NOTE`） + タイトル + ドットリーダー + 日付（`10.12(月)` 形式、hover で濃くなる）
+2. `description`（`--fg-muted`、2行クランプ）
+3. タグ（淡い枠の小さい pill、タグページへのリンク）
+
+- タイトルは**1行省略**とし、`title` 属性で全文を保持する（リーダーと日付を1行目に揃えるため）。
+- アーカイブ（`/posts` `/notes` `/tags/[tag]`）は**年で区切る**。ホームは最新20件のフラットな混在
+  （Post / Note）とし、「記事のみ / ノートのみ / RSS」の導線を残す。
+- 空状態の文言は現行のまま。
+
+#### 8.4.5 記事・ヘッダー・フッター
+
+- **記事ページ**: 種別 → タイトル → 日付（+ 更新 + タグ） → 本文 → 共有 → 一覧へ戻る。
+  共有アクションと「Bluesky で議論する」の挙動（§8.3）は現行のまま。
+- **ヘッダー**: サイト名 + ナビ5項目。現在位置だけ濃色 + 下線とし、罫線は淡く。sticky にはしない。
+- **フッター**: 淡い面（`--bg-subtle`）にコピーライト・RSS・JSON Feed・rel-me を集約する。
 - 画像は `site/public/images/` に置き `<img>` で参照する（Astro の画像最適化は使わない。必要になったら導入する）。
 
 ---
@@ -417,7 +485,7 @@ cms/
 ├── CONTEXT.md
 ├── docs/
 │   ├── spec.md                 ← 本書
-│   └── adr/0001..0009
+│   └── adr/0001..0012
 ├── package.json                # npm workspaces
 ├── packages/shared/            # 型・定数・ATProto テンプレート・フィード型
 │   ├── config.json             # サイトの同一性（URL/名前/説明/テーマ/publicationAtUri）
@@ -477,6 +545,7 @@ cms/
 | **P3 連合系** ✅ | Mastodon / Misskey / Nostr のアダプタと削除 | 3宛先に配信され、記事削除で3宛先から消える |
 | **P4 残り** ✅ | Threads / Discord 配信 / X 手動ボタン | Threads に投稿され、Discord にサマリが届く |
 | **P5 運用** | 削除伝播の全宛先化、Backfill、`/admin`、Runbook、`docs` 整備 | 管理画面から再送でき、過去記事を Threads だけに後から流せる |
+| **P6 デザイン刷新** | §8.4 の視覚言語（トークン整理、一覧の行化、字組、OG 画像、`basicTheme` 一致の検証） | 主要ページが §8.4 に一致し、主要ページの変更前後スクリーンショットが PR に添付されている |
 
 Threads の App Review は待ち時間があるため、**P2 完了時点で審査を提出する**。
 
@@ -486,7 +555,7 @@ Threads の App Review は待ち時間があるため、**P2 完了時点で審�
 
 - **Destination アダプタ**: すべて `dryRun` を持ち、送信せずにリクエスト内容を返す。`fetch` をモックしたフィクスチャテストで、文面・パラメータ・冪等キーを検証する。
 - **Worker**: `vitest`。**D1 互換のインメモリ SQLite**（`src/testing/d1.ts` に migration を適用）と、ATProto エージェント／`fetch` のフェイクを差し込んで `runSyndication` を通しでテストする。実際の SQL（UNIQUE 制約・`meta.changes`）で冪等性と状態機械（pending→sending→sent、失敗→バックオフ→dead、unpublish→delete）を確認する。`@cloudflare/vitest-pool-workers` は使わない（サーバ起動なしで CI が軽いことを優先）。
-- **サイト**: ビルド時バリデーションをテストする（frontmatter の zod、**slug の全体一意性**、`.well-known` と `PUBLICATION_AT_URI` の一致、フィードの生成件数）。
+- **サイト**: ビルド時バリデーションをテストする（frontmatter の zod、**slug の全体一意性**、`.well-known` と `PUBLICATION_AT_URI` の一致、フィードの生成件数）。配色と `basicTheme` の一致は `prebuild` の検証（`site/scripts/validate-content.mjs`）で止める。
 - **lint**: `oxlint --deny-warnings`（sns-client と同じ）。
 - **実地確認**: 本番前は全 Destination を dry-run で通し、その後1件だけ実配信して削除伝播まで確認する。
 

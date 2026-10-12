@@ -6,19 +6,38 @@ interface Props {
   documents: Document[];
   /** 空のときのメッセージ */
   emptyMessage?: string;
+  /** 年で区切って見出しを出す（アーカイブ用） */
+  groupByYear?: boolean;
 }
 
-const { documents, emptyMessage = 'まだ何もありません。' } = Astro.props;
+const { documents, emptyMessage = 'まだ何もありません。', groupByYear = false } = Astro.props;
+
+/** 公開日の降順を保ったまま、隣り合う年をまとめる */
+const groups: { year: string | null; documents: Document[] }[] = [];
+if (groupByYear) {
+  for (const doc of documents) {
+    const last = groups.at(-1);
+    if (last?.year === doc.year) last.documents.push(doc);
+    else groups.push({ year: doc.year, documents: [doc] });
+  }
+} else {
+  groups.push({ year: null, documents });
+}
 ---
 
 {
   documents.length === 0 ? (
     <p class="lede">{emptyMessage}</p>
   ) : (
-    <ul class="doc-list">
-      {documents.map((doc) => (
-        <DocumentCard doc={doc} />
-      ))}
-    </ul>
+    groups.map((group) => (
+      <div class="doc-group">
+        {group.year && <h2 class="year-heading">{group.year}</h2>}
+        <ul class="doc-list">
+          {group.documents.map((doc) => (
+            <DocumentCard doc={doc} titleTag={group.year ? 'h3' : 'h2'} />
+          ))}
+        </ul>
+      </div>
+    ))
   )
 }

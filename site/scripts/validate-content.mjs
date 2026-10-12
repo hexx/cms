@@ -6,6 +6,7 @@
  * - slug が Post / Note をまたいで一意か（Document Record の rkey と URL の同一性を守る）
  * - `publishedAt` が未来でないか（予約投稿はスコープ外）
  * - `.well-known/site.standard.publication` が config と一致しているか
+ * - `global.css` の配色トークンが config の `basicTheme` と一致しているか（ADR-0012）
  *
  * 依存（yaml / @hexx/shared）は動的に読み込む。静的 import にすると
  * 「依存が入っていない」ときに解決エラーだけが出て原因が分かりにくいため。
@@ -24,6 +25,7 @@ async function loadDependencies() {
       documentFrontmatterSchema: shared.documentFrontmatterSchema,
       documentPath: shared.documentPath,
       PUBLICATION_AT_URI: shared.PUBLICATION_AT_URI,
+      CONFIG: shared.CONFIG,
     };
   } catch (error) {
     console.error(`[validate-content] 依存パッケージを読み込めません: ${error.message}`);
@@ -33,7 +35,7 @@ async function loadDependencies() {
   }
 }
 
-const { parseYaml, documentFrontmatterSchema, documentPath, PUBLICATION_AT_URI } =
+const { parseYaml, documentFrontmatterSchema, documentPath, PUBLICATION_AT_URI, CONFIG } =
   await loadDependencies();
 
 const errors = [];
@@ -45,6 +47,39 @@ const collections = [
   { kind: 'post', dir: join(root, 'src/content/posts') },
   { kind: 'note', dir: join(root, 'src/content/notes') },
 ];
+
+/** 配色の対応。publication の basicTheme と一対一で揃える（ADR-0012） */
+const BASIC_THEME_TOKENS = [
+  ['--bg', 'background'],
+  ['--fg', 'foreground'],
+  ['--accent', 'accent'],
+  ['--accent-fg', 'accentForeground'],
+];
+
+const globalCssPath = join(root, 'src/styles/global.css');
+
+/** global.css の最初の `:root` ブロック（＝ライトの定義）の宣言を読む。読めなければ null */
+function parseRootTokens(css) {
+  // セレクタに `:root` を含むトップレベルの規則だけを拾う（ダークは @media の中なので当たらない）
+  const block = css.match(/(?:^|})\s*:root\s*\{([^{}]*)\}/);
+  if (!block) return null;
+
+  const tokens = new Map();
+  for (const declaration of block[1].split(';')) {
+    const separator = declaration.indexOf(':');
+    if (separator === -1) continue;
+    const name = declaration.slice(0, separator).trim();
+    if (name.startsWith('--')) tokens.set(name, declaration.slice(separator + 1).trim());
+  }
+  return tokens;
+}
+
+function hexToRgb(hex) {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return null;
+  const value = Number.parseInt(match[1], 16);
+  return { r: (value >> 16) & 0xff, g: (value >> 8) & 0xff, b: value & 0xff };
+}
 
 /** @type {Map<string, string>} slug -> どこで使われたか */
 const seenSlugs = new Map();
@@ -111,6 +146,37 @@ if (existsSync(wellKnownPath)) {
     errors.push(
       `.well-known/site.standard.publication が config.json と一致しません（${actual} != ${PUBLICATION_AT_URI}）`,
     );
+  }
+}
+
+// 配色トークンと publication の basicTheme の一致（ADR-0012）。
+// レコードには色が焼き込まれていて変更には putRecord が要るので、ずれはここで止める。
+if (!existsSync(globalCssPath)) {
+  errors.push(`global.css がありません: ${globalCssPath}`);
+} else {
+  const css = readFileSync(globalCssPath, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const tokens = parseRootTokens(css);
+  if (!tokens) {
+    errors.push('global.css から :root ブロック（ライトの配色）を読み出せません');
+  } else {
+    for (const [token, key] of BASIC_THEME_TOKENS) {
+      const hex = tokens.get(token);
+      if (!hex) {
+        errors.push(`global.css の :root に ${token} がありません`);
+        continue;
+      }
+      const rgb = hexToRgb(hex);
+      if (!rgb) {
+        errors.push(`global.css の ${token} を色として読めません: ${hex}`);
+        continue;
+      }
+      const expected = CONFIG.basicTheme[key];
+      if (rgb.r !== expected.r || rgb.g !== expected.g || rgb.b !== expected.b) {
+        errors.push(
+          `global.css の ${token} が basicTheme.${key} と一致しません（${hex} != rgb(${expected.r},${expected.g},${expected.b})）。publication record には色が焼き込まれています`,
+        );
+      }
+    }
   }
 }
 

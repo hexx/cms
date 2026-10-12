@@ -40,6 +40,10 @@ _Avoid_: 下書き記事, unpublished
 Publication を ATProto 上に表した `site.standard.publication` レコード。Publication ごとに1つだけ存在する。
 _Avoid_: サイトレコード, publication レコード
 
+**Basic Theme**:
+Publication Record に載せる配色（背景・前景・アクセント）。読者側のクライアントがサイトの雰囲気を再現するために読む。サイトの CSS 変数と対応するが、レコードに焼き込まれる別の面である。
+_Avoid_: テーマ, カラースキーム
+
 **Document Record**:
 Document を ATProto 上に表した `site.standard.document` レコード。Document ごとに1つだけ存在する。
 _Avoid_: 記事レコード, document レコード
