@@ -24,6 +24,6 @@ const { tag, documents } = Astro.props;
   description={`タグ「${tag}」の一覧。`}
 >
   <h1 class="page-title">#{tag}</h1>
-  <DocumentList documents={documents} />
+  <DocumentList documents={documents} groupByYear />
   <p style="margin-top: 2.5rem"><a class="back-link" href="/tags">← タグ一覧へ</a></p>
 </BaseLayout>

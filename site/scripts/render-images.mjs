@@ -16,27 +16,31 @@ const rgb = (c) => `rgb(${c.r},${c.g},${c.b})`;
 const escape = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 const FONT = 'WenQuanYi Zen Hei, Noto Sans CJK JP, Liberation Sans, DejaVu Sans, sans-serif';
+const globalCss = readFileSync(join(root, 'src/styles/global.css'), 'utf8');
 
-// 1. OGP 既定画像（1200x630）
+// 紙面トーンの階調は global.css から読む（重複させると配色の変更で OG 画像が古くなる）
+const token = (name) => {
+  const match = new RegExp(`${name}:\\s*(#[0-9a-f]{6})`, 'i').exec(globalCss);
+  if (!match) throw new Error(`global.css の :root に ${name} がありません`);
+  return match[1];
+};
+
+const PAPER = token('--bg-subtle');
+const MUTED = token('--fg-muted');
+const RULE = token('--line-strong');
+
+// 1. OGP 既定画像（1200x630）— 派手な色を使わず、小さなアクセントだけ置く（docs/spec.md §8.4.2）
 {
   const width = 1200;
   const height = 630;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="${rgb(accent)}"/>
-      <stop offset="100%" stop-color="#0b1220"/>
-    </linearGradient>
-  </defs>
-  <rect width="${width}" height="${height}" fill="url(#bg)"/>
-  <circle cx="${width - 90}" cy="${height - 70}" r="210" fill="#ffffff" opacity="0.05"/>
-  <circle cx="80" cy="60" r="140" fill="#ffffff" opacity="0.04"/>
-  <g font-family="${FONT}" fill="#ffffff">
-    <text x="80" y="300" font-size="96" font-weight="700">${escape(config.name)}</text>
-    <text x="80" y="376" font-size="34" opacity="0.85">${escape(config.description)}</text>
-    <text x="80" y="${height - 72}" font-size="26" opacity="0.7">${escape(new URL(config.siteUrl).host)}</text>
+  <rect width="${width}" height="${height}" fill="${PAPER}"/>
+  <rect width="${width}" height="8" fill="${rgb(accent)}"/>
+  <rect x="96" y="318" width="64" height="4" rx="2" fill="${RULE}"/>
+  <g font-family="${FONT}">
+    <text x="96" y="290" font-size="88" font-weight="600" fill="${rgb(foreground)}">${escape(config.name)}</text>
+    <text x="96" y="390" font-size="32" fill="${MUTED}">${escape(config.description)}</text>
   </g>
-  <rect x="80" y="410" width="112" height="8" rx="4" fill="${rgb(foreground)}" opacity="0.9"/>
 </svg>`;
   const output = join(root, 'public/og-default.png');
   await sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toFile(output);

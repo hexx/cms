@@ -20,7 +20,8 @@ const did = PUBLICATION_AT_URI.replace(/^at:\/\//, '').split('/')[0] ?? '';
   <a class="button" href={blueskyIntent} target="_blank" rel="noopener noreferrer">Bluesky で共有</a>
   <a class="button" href={xIntent} target="_blank" rel="noopener noreferrer">X に投稿</a>
   <button class="button" type="button" data-copy-url={url}>URL をコピー</button>
-  <span class="button" data-copy-status hidden>コピーしました</span>
+  <!-- 結果はボタンではなく控えめなテキストで返す（.button だと hidden が display に負ける） -->
+  <span class="copy-status" data-copy-status role="status" hidden></span>
   {
     !IS_PLACEHOLDER_PUBLICATION && (
       <a

@@ -48,6 +48,9 @@ const navItems = [
   { href: '/about', label: 'About' },
 ];
 const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
+/** 下位ページ（例: /tags/meta）でも親のナビ項目を現在位置にする */
+const isCurrent = (href: string) =>
+  href === '/' ? currentPath === '/' : currentPath === href || currentPath.startsWith(`${href}/`);
 ---
 
 <!doctype html>
@@ -95,7 +98,7 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
         <nav class="site-nav">
           {
             navItems.map((item) => (
-              <a href={item.href} aria-current={currentPath === item.href ? 'page' : undefined}>
+              <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
                 {item.label}
               </a>
             ))
@@ -109,9 +112,11 @@ const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
     <footer class="site-footer">
       <div class="wrap">
         <span>&copy; {new Date().getFullYear()} {CONFIG.author.name}</span>
-        <a href="/feed.xml">RSS</a>
-        <a href="/feed.json">JSON Feed</a>
-        {CONFIG.relMe.map((href) => <a href={href} rel="me">{new URL(href).host}</a>)}
+        <div class="site-footer__links">
+          <a href="/feed.xml">RSS</a>
+          <a href="/feed.json">JSON Feed</a>
+          {CONFIG.relMe.map((href) => <a href={href} rel="me">{new URL(href).host}</a>)}
+        </div>
       </div>
     </footer>
   </body>
