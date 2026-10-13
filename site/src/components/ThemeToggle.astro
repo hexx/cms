@@ -1,0 +1,61 @@
+---
+/**
+ * 配色の切り替え（自動 / ライト / ダーク）。
+ *
+ * 既定は自動（OS に追従）で、選んだ値だけを localStorage に保存する。
+ * JS が無い場合は `html:not(.js)` で非表示にし、OS の設定に従う（プログレッシブエンハンスメント）。
+ */
+const options = [
+  { value: 'auto', label: '自動' },
+  { value: 'light', label: 'ライト' },
+  { value: 'dark', label: 'ダーク' },
+];
+---
+
+<div class="theme-toggle" role="group" aria-label="配色の切り替え">
+  {
+    options.map((option) => (
+      <button
+        class="theme-toggle__option"
+        type="button"
+        data-theme-option={option.value}
+        aria-pressed="false"
+      >
+        {option.label}
+      </button>
+    ))
+  }
+</div>
+
+<script>
+  const KEY = 'theme';
+  const root = document.documentElement;
+  const options = [...document.querySelectorAll<HTMLButtonElement>('[data-theme-option]')];
+
+  const reflect = (value: string) => {
+    for (const option of options) {
+      option.setAttribute('aria-pressed', String(option.dataset.themeOption === value));
+    }
+  };
+
+  // 実際に効いている値（head のインラインスクリプトが付けた属性）を初期状態にする
+  reflect(root.dataset.theme ?? 'auto');
+
+  for (const option of options) {
+    option.addEventListener('click', () => {
+      const value = option.dataset.themeOption ?? 'auto';
+
+      // 「自動」は属性を外してメディアクエリ（OS に追従）に戻す
+      if (value === 'auto') delete root.dataset.theme;
+      else root.dataset.theme = value;
+
+      try {
+        localStorage.setItem(KEY, value);
+      } catch {
+        // 保存できなくてもこのセッションでは切り替わる
+      }
+
+      reflect(value);
+    });
+  }
+</script>
