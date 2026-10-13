@@ -10,6 +10,7 @@ import {
   DEFAULT_OG_IMAGE,
 } from '@hexx/shared';
 import { toJsonLd } from '../lib/json.ts';
+import ThemeToggle from '../components/ThemeToggle.astro';
 import '../styles/global.css';
 
 interface Props {
@@ -57,6 +58,19 @@ const isCurrent = (href: string) =>
 <html lang={SITE_LANGUAGE}>
   <head>
     <meta charset="utf-8" />
+    {/* 配色は描画前に決める（保存された選択を最初の1フレームから効かせる）。
+        JS が動くことを示す `js` クラスもここで付ける（無ければトグルを出さない） */}
+    <script is:inline>
+      (() => {
+        document.documentElement.classList.add('js');
+        try {
+          const saved = localStorage.getItem('theme');
+          if (saved === 'light' || saved === 'dark') document.documentElement.dataset.theme = saved;
+        } catch {
+          // localStorage が使えない環境では OS の設定に従う
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
     <meta name="description" content={description} />
@@ -104,6 +118,7 @@ const isCurrent = (href: string) =>
             ))
           }
         </nav>
+        <ThemeToggle />
       </div>
     </header>
     <main class="wrap">

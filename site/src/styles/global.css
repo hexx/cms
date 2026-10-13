@@ -27,9 +27,12 @@
 }
 
 /* ライトを正典とし、ダークは同じトークン構造で追従させる。
-   このブロックは 2 番目の `:root` なので theme.test.ts の対象外 */
+   ダークの値は「自動（OS に追従）」と「明示（data-theme=dark）」の2箇所に**同じものを**置く。
+   片方だけ直すと「OS がダークのとき」と「トグルでダークにしたとき」で見た目がずれるので、
+   validate-content.mjs が2つのブロックの一致を検証する。
+   `data-theme` は html 要素に付き、未設定と `auto` は OS に追従する（＝このメディアクエリ）。 */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #0d1117;
     --bg-subtle: #161b22;
     --fg: #e6e8eb;
@@ -40,6 +43,18 @@
     --code-bg: #161b22;
     color-scheme: dark;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0d1117;
+  --bg-subtle: #161b22;
+  --fg: #e6e8eb;
+  --fg-muted: #98a2b3;
+  --fg-faint: #6e7781;
+  --line: #21262d;
+  --line-strong: #30363d;
+  --code-bg: #161b22;
+  color-scheme: dark;
 }
 
 *,
@@ -179,8 +194,26 @@ td {
 .site-header .wrap {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 0.75rem 1.25rem;
+}
+
+/* 狭い画面では「タイトル + 配色」を1行、ナビを次の行に落とす（3段にしない） */
+@media (max-width: 34rem) {
+  .site-header .wrap {
+    gap: 0.5rem 1rem;
+  }
+
+  .theme-toggle {
+    order: 2;
+    margin-left: auto;
+  }
+
+  .site-nav {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+  }
 }
 
 .site-title {
@@ -503,6 +536,45 @@ main {
 .tag:hover {
   color: var(--fg);
   border-color: var(--line-strong);
+}
+
+/* 配色の切り替え。JS が無いときは出さない（押しても何も起きないため） */
+html:not(.js) .theme-toggle {
+  display: none;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.125rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-subtle);
+}
+
+.theme-toggle__option {
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1.9;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.theme-toggle__option:hover {
+  color: var(--fg);
+}
+
+.theme-toggle__option[aria-pressed='true'] {
+  background: var(--bg);
+  color: var(--fg);
 }
 
 /* actions */

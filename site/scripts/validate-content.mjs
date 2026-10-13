@@ -62,16 +62,27 @@ const globalCssPath = join(root, 'src/styles/global.css');
 function parseRootTokens(css) {
   // セレクタに `:root` を含むトップレベルの規則だけを拾う（ダークは @media の中なので当たらない）
   const block = css.match(/(?:^|})\s*:root\s*\{([^{}]*)\}/);
-  if (!block) return null;
+  return block ? parseDeclarations(block[1]) : null;
+}
 
-  const tokens = new Map();
-  for (const declaration of block[1].split(';')) {
+/** `a: b; c: d` を Map にする */
+function parseDeclarations(body) {
+  const declarations = new Map();
+  for (const declaration of body.split(';')) {
     const separator = declaration.indexOf(':');
     if (separator === -1) continue;
     const name = declaration.slice(0, separator).trim();
-    if (name.startsWith('--')) tokens.set(name, declaration.slice(separator + 1).trim());
+    if (name) declarations.set(name, declaration.slice(separator + 1).trim());
   }
-  return tokens;
+  return declarations;
+}
+
+/** 宣言の順番に依存せず比較するための文字列化 */
+function serialize(declarations) {
+  return [...declarations]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, value]) => `${name}:${value}`)
+    .join('\n');
 }
 
 function hexToRgb(hex) {
@@ -177,6 +188,22 @@ if (!existsSync(globalCssPath)) {
         );
       }
     }
+  }
+
+  // ダークの値は「自動（OS に追従）」と「明示（data-theme=dark）」の2箇所にある。
+  // 片方だけ直すと「OS がダークのとき」と「トグルでダークにしたとき」で見た目がずれる。
+  const autoDark = css.match(
+    /@media\s*\(prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme='light'\]\)\s*\{([^{}]*)\}/,
+  );
+  const forcedDark = css.match(/:root\[data-theme='dark'\]\s*\{([^{}]*)\}/);
+  if (!autoDark || !forcedDark) {
+    errors.push(
+      'global.css にダークのトークンブロックが見つかりません（@media と :root[data-theme=dark] の両方が必要です）',
+    );
+  } else if (serialize(parseDeclarations(autoDark[1])) !== serialize(parseDeclarations(forcedDark[1]))) {
+    errors.push(
+      'global.css のダークのトークンが @media（自動）と :root[data-theme=dark]（明示）で一致しません',
+    );
   }
 }
 
