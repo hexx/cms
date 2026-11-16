@@ -113,10 +113,21 @@ npm run db:remote && npm run deploy:syndicator  # hexx-syndicator
 | Root directory | `/`（空のまま） | `/`（空のまま） |
 | Build command | `npm run build -w site` | `npm run db:migrate:remote -w syndicator` |
 | Deploy command | `npm run deploy -w site` | `npm run deploy -w syndicator` |
+| Preview command | `npm run preview:worker -w site` | （未設定 = Preview Builds 無効） |
 | Build watch paths（include） | `site/*`, `packages/*` | `syndicator/*`, `packages/*` |
 
 `packages/shared` を両方が使うので、include に `packages/*` を入れておく。
 マイグレーションを build 側に置いているのは、失敗したときにデプロイさせないため。
+
+**Preview Builds は `hexx-blog` だけ有効**にする。`npm run preview:worker -w site` は `wrangler preview`
+（Worker Previews）で、ブランチ名の Preview を作り URL を PR にコメントする。
+
+- Worker Previews は **Wrangler 4.135 以上**が要件。設定ファイルに `previews` ブロックが必須なので
+  `site/wrangler.jsonc` に空のブロックを置いている（`assets` はトップレベルのまま）
+- `npm run preview -w site` は `astro preview`（ローカルの静的サーバ）なので Preview command に書かない
+- `hexx-syndicator` は本番 D1 を共有してしまうため Preview を作らない（Preview は production の binding を継承しない設定が別途要る）
+- Preview URL は Cloudflare Access の保護外に出る。このサイトは公開ブログなので問題ないが、
+  Syndicator 側で有効化する場合は先に Access の適用範囲を確認する
 
 デプロイ後に即座に配信したい場合は、Workers Builds の Event Subscriptions（`build.succeeded` を Queue 経由で購読）で Syndicator を叩ける。張らなくても Cron が10分ごとに拾うので必須ではない。
 

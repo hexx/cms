@@ -8,5 +8,12 @@
     // canonical URL は末尾スラッシュなし。/foo/ を /foo へ寄せ、/foo は foo/index.html から配る。
     "html_handling": "drop-trailing-slash",
     "not_found_handling": "404-page"
-  }
+  },
+  // Workers Builds の Preview Builds 用。Worker Previews はこのブロックが必須（中身は空でよい）。
+  // assets は Preview でもブランチの内容をそのまま上げるためトップレベルのままにする
+  // （https://developers.cloudflare.com/workers/previews/configuration/）。
+  "previews": {},
+  // workers.dev のプレビュー URL を発行する。Preview URL は Access の保護外に出るが、
+  // このサイトは公開ブログなので秘匿情報は載らない。
+  "preview_urls": true
 }
