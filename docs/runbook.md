@@ -28,6 +28,15 @@ Cron も10分ごとに走るので、フックが失敗しても自動で拾わ�
 **注意**: ビルドが落ちると何も公開されない（`prebuild` の検証が frontmatter と slug の
 一意性を見ている）。エラーは Workers Builds のログに出る。
 
+### 公開前にプレビューを見る
+
+ブランチを push すると Workers Builds が Preview を作る（`hexx-blog` のみ。設定は [README](../README.md#workers-buildspush-で自動デプロイ)）。
+Preview はブランチの成果物を配信するだけで、本番のデプロイには影響しない。
+
+- Preview のURLは Worker の **Previews** に出る。PR にコメントされるのは GitHub 連携が有効な場合だけ
+- Preview のビルドが落ちても本番は旧版のまま。ログは PR / コミットのチェック（`Workers Builds: hexx-blog`）から辿る
+- ローカルで見たいだけなら `npm run dev`（`astro dev`）。`npm run preview -w site` は `astro preview` で、Workers の Preview とは別物
+
 ### 記事を直す
 
 本文・タイトル・`updatedAt` を編集して push。standard.site のレコードは更新されるが、
